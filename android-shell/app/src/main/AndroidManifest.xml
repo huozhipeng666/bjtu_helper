@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 访问远程站点 -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- BjtuCalendar 桥：往系统日历写入事件，需要写日历权限；读权限用于校验是否已授权 -->
+    <uses-permission android:name="android.permission.WRITE_CALENDAR" />
+    <uses-permission android:name="android.permission.READ_CALENDAR" />
+
+    <!-- 相机（可选）：站点"拍照识别课表"若走 <input type=file capture=environment>，WebView 用系统的
+         FileProvider + ACTION_IMAGE_CAPTURE 时需要相机权限。若你只从相册选图可去掉。 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- 2026-10-20：站点已切 https（https://bjtuhelper.bond），usesCleartextTraffic 改为 false。
+         留 true 等于给明文降级留口子 —— 全站 https 之后任何 http 请求本就该被系统直接拒绝。
+         ⚠️ 若站点将来需要临时回退到 http，这里和 MainActivity.HOME_URL 必须一起改，否则 App 白屏。
+         allowBackup 关掉：系统备份会把 WebView 的 localStorage（里面有登录 token）一起带走，
+         并可能落进用户的云备份。
+
+         enableOnBackInvokedCallback（v1.7 新增）：targetSdk 36 + Android 13 起，系统优先走
+         OnBackInvoked 通道。显式打开它并由 MainActivity 注册回调，侧滑返回才会"后退一级"
+         而不是被系统当成无人处理、直接结束 Activity（用户看到的是「一滑就退到桌面」）。
+         ⚠️ 打开它之后 onBackPressed() 在 API 33+ 上不再被调用，两条路径必须一起改。 -->
+    <application
+        android:label="@string/app_name"
+        android:icon="@drawable/ic_launcher"
+        android:supportsRtl="true"
+        android:usesCleartextTraffic="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:allowBackup="false"
+        android:enableOnBackInvokedCallback="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|smallestScreenSize|density"
+            android:windowSoftInputMode="adjustResize"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- 桌面小组件（完整版 4×3）：今日课程 + 最近 DDL 倒计时（数据由网页经 BjtuWidget.update 推送，
+             本 receiver 不发网络请求；渲染逻辑见 ScheduleWidgetProvider / BaseScheduleWidget）。
+             exported=false：小组件 receiver 只由系统（AppWidgetManager）投递，
+             对第三方 App 关闭；APPWIDGET_UPDATE 是受系统保护的动作，这样配是官方推荐写法。 -->
+        <receiver
+            android:name=".ScheduleWidgetProvider"
+            android:exported="false"
+            android:label="@string/widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <!-- 跨天 / 换时区时倒计时与"今天"的定位需要立即重算
+                    （30 分钟的 updatePeriodMillis 是兜底，不是主通道） -->
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/schedule_widget_info" />
+        </receiver>
+
+        <!-- 桌面小组件（标准版 4×2）：与完整版共用布局与数据，课程行用紧凑单行模式 -->
+        <receiver
+            android:name=".ScheduleWidgetMediumProvider"
+            android:exported="false"
+            android:label="@string/widget_label_medium">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/schedule_widget_info_medium" />
+        </receiver>
+
+        <!-- 桌面小组件（紧凑版 2×2）：下一节课 + 最近 DDL 倒计时 -->
+        <receiver
+            android:name=".ScheduleWidgetSmallProvider"
+            android:exported="false"
+            android:label="@string/widget_label_small">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="android.intent.action.DATE_CHANGED" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/schedule_widget_info_small" />
+        </receiver>
+
+        <!-- 小组件课程列表的供数服务：只有系统（Launcher）能绑（BIND_REMOTEVIEWS），
+             行数据只经系统之手进桌面，不对外暴露任何接口 -->
+        <service
+            android:name=".ScheduleWidgetListService"
+            android:exported="false"
+            android:permission="android.permission.BIND_REMOTEVIEWS" />
+    </application>
+
+</manifest>

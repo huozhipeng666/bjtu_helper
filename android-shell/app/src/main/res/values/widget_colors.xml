@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件配色 · 浅色。深色对应 values-night/widget_colors.xml；
+     需要跟随系统深浅色正是因为桌面小组件由桌面（Launcher）按系统主题 inflate。 -->
+<resources>
+    <color name="widget_surface">#FFFFFF</color>
+    <color name="widget_on_surface">#1F232B</color>
+    <color name="widget_secondary">#79808F</color>
+    <color name="widget_accent">#109D7F</color>
+    <color name="widget_danger">#D93843</color>
+    <color name="widget_divider">#14000000</color>
+</resources>

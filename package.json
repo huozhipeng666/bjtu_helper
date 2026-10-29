@@ -1,0 +1,24 @@
+{
+  "name": "bjtu-helper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "交大小助手：课表 / DDL / 考试与成绩。根包只负责编排两个 workspace，本身不含业务代码。",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=22.5"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,web -c cyan,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev -w server",
+    "dev:web": "npm run dev -w web",
+    "build": "npm run build -w server && npm run build -w web",
+    "start": "npm run start -w server",
+    "typecheck": "tsc -p server/tsconfig.json --noEmit && tsc -p web/tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

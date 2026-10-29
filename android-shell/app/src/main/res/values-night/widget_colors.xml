@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件配色 · 深色（跟随系统 night mode，无需 App 内主题参与） -->
+<resources>
+    <color name="widget_surface">#1D2026</color>
+    <color name="widget_on_surface">#E8EAF0</color>
+    <color name="widget_secondary">#9AA2B1</color>
+    <color name="widget_accent">#35C4A0</color>
+    <color name="widget_danger">#FF6B70</color>
+    <color name="widget_divider">#1FFFFFFF</color>
+</resources>

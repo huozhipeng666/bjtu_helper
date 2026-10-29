@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#15181d"/>
+      <stop offset="100%" stop-color="#0e1013"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#46b9a2"/>
+      <stop offset="100%" stop-color="#2ba38b"/>
+    </linearGradient>
+    <linearGradient id="accent2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5ed1ba"/>
+      <stop offset="100%" stop-color="#46b9a2"/>
+    </linearGradient>
+  </defs>
+  <!-- Background with rounded squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="none" stroke="#262c35" stroke-width="8"/>
+  
+  <!-- Graduation Cap / Book Symbol -->
+  <g transform="translate(64, 76)">
+    <!-- Mortarboard Diamond -->
+    <polygon points="192,50 360,115 192,180 24,115" fill="url(#accent)"/>
+    <!-- Tassel -->
+    <path d="M 330,125 L 345,190 C 345,210 325,225 325,245" fill="none" stroke="#f5c26b" stroke-width="12" stroke-linecap="round"/>
+    <circle cx="325" cy="255" r="14" fill="#f5c26b"/>
+    
+    <!-- Skullcap Base -->
+    <path d="M 96,150 L 96,230 C 96,285 288,285 288,230 L 288,150" fill="url(#accent2)"/>
+    
+    <!-- Open Calendar/Schedule Grid Motif -->
+    <g transform="translate(48, 250)">
+      <rect x="0" y="0" width="288" height="90" rx="16" fill="#1d2128" stroke="#262c35" stroke-width="6"/>
+      <!-- Grid Columns -->
+      <line x1="72" y1="0" x2="72" y2="90" stroke="#262c35" stroke-width="4"/>
+      <line x1="144" y1="0" x2="144" y2="90" stroke="#262c35" stroke-width="4"/>
+      <line x1="216" y1="0" x2="216" y2="90" stroke="#262c35" stroke-width="4"/>
+      <!-- Schedule Blocks -->
+      <rect x="12" y="16" width="48" height="24" rx="6" fill="#4f7cff"/>
+      <rect x="84" y="32" width="48" height="42" rx="6" fill="#46b9a2"/>
+      <rect x="156" y="16" width="48" height="58" rx="6" fill="#ffa94d"/>
+      <rect x="228" y="24" width="48" height="34" rx="6" fill="#845ef7"/>
+    </g>
+  </g>
+</svg>

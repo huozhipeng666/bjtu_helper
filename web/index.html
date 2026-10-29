@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- 主题色按系统深浅色分别给：只有一个值时，浅色主题下状态栏仍是深色，视觉上像"顶部多了一条黑边" -->
+    <meta name="theme-color" content="#0e1013" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ffffff" media="(prefers-color-scheme: light)" />
+    <meta name="color-scheme" content="dark light" />
+    <!-- 应用页也可能被分享（例如直接发 /app 链接），给一条描述避免出现"只有标题"的卡片 -->
+    <meta
+      name="description"
+      content="交大小助手：课表、DDL、考试与成绩集中管理，支持教务一键导入、离线查看与到期提醒。"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="交大小助手" />
+    <!-- 图标：SVG 给现代浏览器，PNG 给 iOS（apple-touch-icon 不支持 SVG）与安装弹窗 -->
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <title>交大小助手 · 课表与 DDL 助手</title>
+    <!-- 启动外壳样式（内联，见下方 #root 内的骨架）。
+         为什么必须内联、且不能等 styles.css：外部样式表是「渲染阻塞」资源，
+         浏览器会一直白屏到它下载+解析完 —— 实测冷启动（4G 限速 + 4x CPU）
+         要 450ms 左右。把外壳的几十行样式直接写进 HTML，首帧就只剩 HTML
+         本身的传输时间。真正的应用样式由服务端在渲染 /app 时内联进来
+         （见 server/src/index.ts 的 renderApp），所以这里不会出现"骨架有样式、
+         应用没样式"的空窗。
+         颜色变量都写了字面量兜底：万一应用样式缺失，外壳也不会变成白块。 -->
+    <style>
+      .boot-app {
+        min-height: 100vh;
+        max-width: 480px;
+        margin: 0 auto;
+        padding-left: env(safe-area-inset-left, 0px);
+        padding-right: env(safe-area-inset-right, 0px);
+      }
+      .boot-top {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: calc(14px + env(safe-area-inset-top, 0px)) 18px 10px;
+      }
+      .boot-avatar {
+        width: 34px;
+        height: 34px;
+        border-radius: 12px;
+        background: var(--bg-3, #1d2128);
+        flex-shrink: 0;
+        display: block;
+      }
+      .boot-text {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        min-width: 0;
+      }
+      .boot-line,
+      .boot-stat,
+      .boot-nav span {
+        display: block;
+        background: var(--bg-3, #1d2128);
+        border-radius: 6px;
+        position: relative;
+        overflow: hidden;
+        flex-shrink: 0;
+      }
+      /* 微光扫过：让"正在加载"这件事一眼可读，而不是一块静止的灰 */
+      .boot-line::after,
+      .boot-stat::after {
+        content: '';
+        position: absolute;
+        inset: 0;
+        transform: translateX(-100%);
+        background: linear-gradient(90deg, transparent, var(--skel-shine, rgba(255, 255, 255, 0.05)), transparent);
+        animation: bootShine 1.5s ease infinite;
+      }
+      @keyframes bootShine {
+        to {
+          transform: translateX(100%);
+        }
+      }
+      .boot-content {
+        padding: 4px 16px calc(96px + env(safe-area-inset-bottom, 0px));
+      }
+      .boot-stats {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 10px;
+        margin-bottom: 16px;
+      }
+      .boot-stat {
+        height: 76px;
+        border-radius: 13px;
+        background: var(--card, #15181d);
+        border: 1px solid var(--border-soft, #20252c);
+      }
+      .boot-card {
+        background: var(--card, #15181d);
+        border: 1px solid var(--border-soft, #20252c);
+        border-radius: var(--radius, 18px);
+        padding: 18px;
+      }
+      .boot-nav {
+        position: fixed;
+        bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 40px);
+        max-width: 416px;
+        height: 62px;
+        padding: 6px;
+        border-radius: 26px;
+        background: var(--nav-bg, rgba(14, 16, 19, 0.92));
+        border: 1px solid var(--nav-border, rgba(255, 255, 255, 0.1));
+        box-shadow: 0 10px 34px rgba(0, 0, 0, 0.35);
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+      }
+      .boot-nav span {
+        width: 44px;
+        height: 14px;
+        border-radius: 7px;
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-line::after,
+        .boot-stat::after {
+          animation: none;
+        }
+      }
+    </style>
+    <!-- 首屏防闪脚本外置（同源静态文件），以便 CSP 保持 script-src 'self' 而不必开 unsafe-inline。
+         仍是 head 中的同步脚本，执行时机早于首次绘制，防闪效果与内联版一致。 -->
+    <script src="/theme-init.js"></script>
+  </head>
+  <body>
+    <!-- ⚠️ 这里的静态骨架必须与 src/components/BootShell.tsx 的输出**逐字同构**。
+         它是 HTML 自带的：在 React 那个几百 KB 的 chunk 下载、解析、执行完之前，
+         屏幕上显示的就是这段标记。React 首次提交时会把 #root 里的既有子节点整体清除
+         （react-dom 的 clearContainer），所以两者是"同一块骨架被接管"，不会叠加或闪烁。
+         改一边就要同步改另一边。 -->
+    <div id="root">
+      <div class="boot-app" aria-busy="true" aria-label="正在加载">
+        <div class="boot-top">
+          <span class="boot-avatar"></span>
+          <span class="boot-text">
+            <span class="boot-line" style="width: 76px; height: 13px"></span>
+            <span class="boot-line" style="width: 52px; height: 10px"></span>
+          </span>
+        </div>
+        <div class="boot-content">
+          <span class="boot-line" style="width: 96px; height: 15px; margin: 14px 2px 12px"></span>
+          <span class="boot-line" style="width: 68%; height: 32px; margin: 0 2px 12px"></span>
+          <span class="boot-line" style="width: 210px; height: 13px; margin: 0 2px 20px"></span>
+          <div class="boot-stats">
+            <span class="boot-stat"></span>
+            <span class="boot-stat"></span>
+            <span class="boot-stat"></span>
+          </div>
+          <div class="boot-card">
+            <span class="boot-line" style="width: 40%; height: 12px; margin-bottom: 12px"></span>
+            <span class="boot-line" style="width: 55%; height: 19px; margin-bottom: 14px"></span>
+            <span class="boot-line" style="width: 82%; height: 13px; margin-bottom: 9px"></span>
+            <span class="boot-line" style="width: 62%; height: 13px"></span>
+          </div>
+        </div>
+        <div class="boot-nav"><span></span><span></span><span></span><span></span></div>
+      </div>
+    </div>
+    <!-- 脚本被拦/浏览器太旧时，至少告诉用户发生了什么，而不是留一片空白 -->
+    <noscript>
+      <div style="padding: 24px; font-family: system-ui, sans-serif; line-height: 1.7">
+        <h2 style="margin: 0 0 8px">需要开启 JavaScript</h2>
+        <p style="margin: 0; color: #666">
+          交大小助手是一个网页应用，课表、DDL 与考试都在浏览器里渲染。请允许本站运行 JavaScript 后刷新页面。
+        </p>
+      </div>
+    </noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

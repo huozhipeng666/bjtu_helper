@@ -1,0 +1,87 @@
+# ============================================================
+# bjtu-helper .gitignore
+#
+# 原则：**默认忽略一切「会产生、含隐私、含凭据」的东西**。
+# 这个项目线上服务跑的是真实用户数据，误提交一次就无法收回
+# （即使删掉，历史里仍然查得到）。
+# ============================================================
+
+# ---------- 依赖 ----------
+node_modules/
+.pnpm-store/
+
+# ---------- 构建产物 ----------
+dist/
+server/dist/
+web/dist/
+scripts/dist/
+*.tsbuildinfo
+.vite/
+# Vite 在构建时生成的临时配置文件
+*.timestamp-*.mjs
+
+# ---------- 运行时数据（⚠️ 真实用户数据，绝对不要提交）----------
+server/data/
+server/server/data/
+data/
+uploads/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ---------- 凭据与本地配置（⚠️ 绝对不要提交）----------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+secrets/
+# Android 本机 SDK 路径（含本机用户名）
+local.properties
+# 部署目标（服务器 IP / 账号）：评审 D1，不入库
+deploy/deploy.local.json
+
+# ---------- AI 助手 / 编辑器会话目录 ----------
+# 这些目录里存着会话日志与命令原文，可能含服务器 IP 与密钥
+.workbuddy/
+.workbuddy-ai/
+.claude/
+.cursor/
+.idea/
+.vscode/
+*.iml
+
+# ---------- 本地验证与临时文件 ----------
+.npm-cache/
+.edge*/
+.smoke*-data/
+*-verify*/
+*.log
+*.pid
+.svr.pid
+.tmp/
+tmp/
+
+# ---------- Android / Gradle ----------
+.gradle/
+build/
+app/build/
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+*.apk
+*.aab
+*.jks
+
+# ---------- 操作系统 ----------
+.DS_Store
+Thumbs.db
+desktop.ini

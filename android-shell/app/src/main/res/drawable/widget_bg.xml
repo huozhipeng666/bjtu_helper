@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 小组件卡片背景：圆角 + 随主题的表面色（@color/widget_surface 有 values / values-night 两套） -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="@color/widget_surface" />
+    <corners android:radius="18dp" />
+</shape>

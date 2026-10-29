@@ -1,0 +1,10 @@
+<resources>
+    <string name="app_name">交大小助手</string>
+    <!-- 桌面小组件：三个尺寸在选择器里的名字与说明（按应用「交大小助手」分组展示） -->
+    <string name="widget_label">今日课程 · 完整</string>
+    <string name="widget_desc">今日课程列表与最近 DDL 倒计时，可自由缩放</string>
+    <string name="widget_label_medium">今日课程 · 标准</string>
+    <string name="widget_desc_medium">今日课程与最近 DDL 倒计时</string>
+    <string name="widget_label_small">今日课程 · 紧凑</string>
+    <string name="widget_desc_small">下一节课与最近 DDL 倒计时</string>
+</resources>

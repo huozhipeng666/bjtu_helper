@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  明文（http）放行名单。
+
+  为什么需要：物理实验（wlsy.bjtu.edu.cn）是上世纪留下来的 ASP.NET 站，
+  **只开 80 端口**，443 连不上（实测 TCP 超时）。而 targetSdk 28+ 默认禁止明文，
+  不放行这一条，App 里「物理实验」永远打不开。
+
+  只放行这一个域，其余仍强制 https —— 不要图省事改成全局 usesCleartextTraffic="true"。
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false" />
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">wlsy.bjtu.edu.cn</domain>
+    </domain-config>
+</network-security-config>

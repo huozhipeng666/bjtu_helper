@@ -1,0 +1,12 @@
+<resources>
+    <!-- 纯 WebView 应用：用无 ActionBar 的浅色/深色自适应主题，避免自带顶栏与站点导航重叠 -->
+    <style name="AppTheme" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@android:color/white</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>
+    </style>
+
+    <!-- v1.9 起课程行改为独立布局文件（widget_item_course / _compact），不再用合并式 style；
+         小组件的全部样式内联在各布局文件里，颜色集中在 widget_colors(.night).xml -->
+</resources>

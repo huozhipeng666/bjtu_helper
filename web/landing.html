@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>交大小助手 · 课表、DDL、考试一个页面全管住</title>
+    <meta
+      name="description"
+      content="用学号一键导入本学期课表，自动读取课名、时间、教室与学分；作业与考试自动生成倒计时。免费使用，无需注册即可先看看，支持网页与 Android App。"
+    />
+    <meta name="keywords" content="课表,课表导入,DDL,考试安排,大学生,教务系统,交大小助手" />
+    <meta name="theme-color" content="#0e1013" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="robots" content="index,follow" />
+
+    <!-- 分享卡片：微信 / QQ 里发链接时决定标题、描述与缩略图。
+         ⚠️ OG 要求**绝对地址**，而站点目前还是 IP、域名几天后才到位。
+         所以这里写占位符 __SITE_ORIGIN__，由服务端按请求头 Host 替换
+         （见 server/src/index.ts 的 GET / 处理）—— 换域名时不用改这个文件。 -->
+    <link rel="canonical" href="__SITE_ORIGIN__/" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="交大小助手" />
+    <meta property="og:title" content="交大小助手 · 课表、DDL、考试一个页面全管住" />
+    <meta
+      property="og:description"
+      content="用学号一键导入本学期课表，作业与考试自动生成倒计时。免费使用，无需注册即可先看看。"
+    />
+    <meta property="og:image" content="__SITE_ORIGIN__/og-cover.png" />
+    <meta property="og:url" content="__SITE_ORIGIN__/" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+    <!-- 入口分流：必须放在样式表**之前**、且是同步脚本 —— 越早执行越不容易"闪一下首页再跳走"。
+         老版 App（v1.1 的入口写死为 /）与已安装的 PWA（旧 manifest 的 start_url 是 /）
+         打开后会看到首页，靠这个脚本把它们送回 /app。
+         ⚠️ 外置而非内联：应用 CSP 是 script-src 'self'，内联脚本会被浏览器直接拦下。 -->
+    <script src="/landing-redirect.js"></script>
+    <!-- 首屏防闪：与应用共用 /theme-init.js（同源外置脚本，CSP 无需开 unsafe-inline）。
+         首页不注册 Service Worker，也不加载应用 JS —— 首屏只有这一张样式表和极少脚本。 -->
+    <script src="/theme-init.js"></script>
+    <!-- 动效开关：同样是 head 里的同步脚本。它决定 html 上挂 lp-fx 还是 lp-no-fx，
+         必须早于首次绘制 —— 否则滚动显隐的初始透明态会晚一拍，用户会看到一次闪动。
+         它还会在 module 脚本没跑起来时自动摘掉 lp-fx，避免"内容全透明"的白屏。 -->
+    <script src="/landing-fx.js"></script>
+    <link rel="stylesheet" href="./src/landing/landing.css" />
+    <!-- 无 JS 时把窄屏的汉堡菜单退回成一行可换行的链接，保证导航依然可用 -->
+    <noscript>
+      <style>
+        @media (max-width: 760px) {
+          .lp-menu-btn { display: none !important; }
+          .lp-nav-in { flex-wrap: wrap; height: auto; padding-bottom: 10px; }
+          .lp-nav-links {
+            display: flex !important;
+            position: static;
+            flex: 1 1 100%;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 14px;
+            padding: 0;
+            background: none;
+            border: 0;
+          }
+        }
+      </style>
+    </noscript>
+  </head>
+  <body class="lp">
+    <a class="lp-skip" href="#main">跳到主要内容</a>
+    <!-- 应用内 / 老用户提示条：由 landing.ts 判定后揭示。
+         两种情况共用一条：① 在 App 的 WebView 里打开但没登录态；
+         ② 普通浏览器但本机有登录态（老用户）—— 文案由脚本区分。 -->
+    <div class="lp-inapp" id="inAppBar" hidden>
+      <span id="inAppText">检测到你正在 App 内打开</span>
+      <a href="/app">直接进入应用 →</a>
+    </div>
+
+    <header class="lp-nav" id="siteNav">
+      <div class="lp-wrap lp-nav-in">
+        <a class="lp-brand" href="/">
+          <img src="/icon.svg" alt="" width="28" height="28" />
+          <span>交大小助手</span>
+        </a>
+        <!-- 导航项从 5 个增到 6 个（新增「应用」「小部件」，去掉「怎么用」——
+             它仍是正文区块，只是不再占导航位置）。宽屏 24px 间距在 760~900px 之间
+             会挤，故 CSS 里另有一档把间距与字号收窄，见 .lp-nav-links 的 980px 断点。 -->
+        <nav class="lp-nav-links" id="navLinks" aria-label="主导航">
+          <a href="#features">功能</a>
+          <a href="#apps">应用</a>
+          <a href="#widgets">小部件</a>
+          <a href="#download">下载</a>
+          <a href="#faq">常见问题</a>
+          <a href="#contact">联系</a>
+        </nav>
+        <div class="lp-nav-right">
+          <button class="lp-theme" id="themeBtn" type="button" aria-label="切换深浅色主题">主题</button>
+          <a class="lp-btn lp-btn-primary lp-btn-sm" href="/app">立即使用</a>
+          <!-- 窄屏才有：横向导航在 ≤760px 收进这个下拉。
+               aria-expanded 由 landing.ts 同步，无 JS 时由 <head> 的 noscript 样式兜底。 -->
+          <button
+            class="lp-menu-btn"
+            id="menuBtn"
+            type="button"
+            aria-expanded="false"
+            aria-controls="navLinks"
+          >
+            <span class="lp-menu-ico" aria-hidden="true"></span>
+            菜单
+          </button>
+        </div>
+      </div>
+      <!-- 阅读进度：贴在导航下沿，用 scaleX 驱动，不触发布局 -->
+      <div class="lp-nav-progress" id="navProgress" aria-hidden="true"></div>
+    </header>
+
+    <main id="main">
+      <!-- ============ 主视觉 ============ -->
+      <section class="lp-hero">
+        <!-- 极光层：纯装饰，绝对定位铺满本区块并自行 overflow:hidden，
+             不会裁到兄弟节点（右侧手机截图的 3D 倾斜因此不受影响） -->
+        <div class="lp-aurora" aria-hidden="true"></div>
+        <!-- 指针跟随的柔光：与卡片聚光同一套做法 —— 脚本只写 CSS 变量 --hx/--hy，
+             具体渲染交给 CSS 的 radial-gradient（不给每帧重算样式留机会）。
+             只在能 hover 的设备上出现；触屏、关闭动效时都不参与。 -->
+        <div class="lp-hero-glow" id="heroGlow" aria-hidden="true"></div>
+        <div class="lp-wrap lp-hero-grid">
+          <div class="lp-hero-copy">
+            <p class="lp-eyebrow lp-reveal">免费使用 · 免注册即可先看看</p>
+            <h1 class="lp-h1 lp-reveal" style="--lp-delay: 70ms">
+              课表、DDL、考试，<br />一个页面<em>全管住</em>。
+            </h1>
+            <p class="lp-lead lp-reveal" style="--lp-delay: 140ms">
+              用学号一键导入本学期课表，自动读取课名、时间、教室与学分；
+              作业与考试自动生成倒计时，按紧急程度排好顺序。
+            </p>
+            <div class="lp-cta-row lp-reveal" style="--lp-delay: 210ms">
+              <a class="lp-btn lp-btn-primary" href="/app">立即开始使用</a>
+              <a class="lp-btn lp-btn-ghost" href="#download">下载 Android 版</a>
+            </div>
+            <ul class="lp-trust lp-reveal" style="--lp-delay: 280ms">
+              <li>免登录试用</li>
+              <li>不要手机号</li>
+              <li>无广告</li>
+              <li>数据可导出</li>
+            </ul>
+          </div>
+
+          <!-- 应用界面截图 + 两张浮动状态卡。
+               外层收缩到手机宽度（不是铺满整个网格列），浮动卡才能用负偏移贴到手机边缘。
+               浮动卡里的信息截图里本来就有，属于纯装饰 → aria-hidden，避免读屏重复播报。
+               ⚠️ 这里刻意**不加** lp-reveal：手机截图是首屏最大内容（LCP），
+               给它套淡入会让 LCP 判定推迟到"透明度刚大于 0"的那一帧。
+               左侧文案照常入场，右侧产品图直接出现，观感反而更利落。 -->
+          <div class="lp-hero-visual">
+            <!-- 显式写 width/height（= CSS 像素尺寸，实际文件是 2x）
+                 以避免加载时的布局跳动（CLS）；hero 图是首屏最大内容，加 fetchpriority 提优先级。 -->
+            <figure class="lp-phone">
+              <!-- <picture> 只负责挑格式：支持 WebP 取 .webp，否则回落到 PNG 的 src。
+                   ⚠️ style="display: contents" 是必须的：<picture> 默认是 inline 盒，
+                   .lp-phone img / .lp-shot img 上的 display:block + width:100% 只作用于 img，
+                   而 inline 的 <picture> 会自己参与行内排版（基线留白、宽度按 inline 算），
+                   等于给原本"img 直接当块级子元素"的布局平白插了一层。
+                   display:contents 让 <picture> 不生成任何盒子，img 在布局上仍是
+                   .lp-phone / .lp-shot 的直接子元素，原有 CSS 选择器与尺寸完全不变。 -->
+              <picture style="display: contents">
+                <source srcset="/shots/week.webp" type="image/webp" />
+                <img
+                  src="/shots/week.png"
+                  width="390"
+                  height="844"
+                  alt="交大小助手「本周」页：显示今天有几节课、哪些 DDL 今天到期，以及下一节课的时间地点"
+                  fetchpriority="high"
+                  decoding="async"
+                />
+              </picture>
+            </figure>
+            <span class="lp-chip lp-chip-a" aria-hidden="true">下一节课 · 14:00 逸夫楼 302</span>
+            <span class="lp-chip lp-chip-b" aria-hidden="true">今天 2 个 DDL 到期</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 关键词跑马灯 ============ -->
+      <!-- 内容全部是本页已有的说法，只是把它们横着滚一遍，作为首屏与正文之间的过渡带。
+           无缝循环靠 landing.ts 把轨道包成两组并克隆一份（克隆体 aria-hidden）——
+           HTML 里只写一份，避免读屏把同一批词念两遍。
+           脚本没跑 / 关闭动效时，轨道退回"居中换行"的静态排布，内容照常可读。 -->
+      <section class="lp-marquee" aria-label="功能关键词">
+        <div class="lp-marquee-track" id="marqueeTrack" data-marquee-track>
+          <span class="lp-marquee-item">一键导入课表</span>
+          <span class="lp-marquee-item">DDL 倒计时</span>
+          <span class="lp-marquee-item">考试安排</span>
+          <span class="lp-marquee-item">写入系统日历</span>
+          <span class="lp-marquee-item">免注册试用</span>
+          <span class="lp-marquee-item">16 个应用</span>
+          <span class="lp-marquee-item">桌面小部件</span>
+          <span class="lp-marquee-item">无广告</span>
+          <span class="lp-marquee-item">数据可导出</span>
+          <span class="lp-marquee-item">网页 + Android</span>
+        </div>
+      </section>
+
+      <!-- ============ 界面预览 ============ -->
+      <section class="lp-sec lp-alt" id="preview">
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">界面预览</p>
+            <h2 class="lp-h2">课表和 DDL，实际长这样。</h2>
+            <p class="lp-sec-sub">下面两张是应用里的真实界面截图（手机端视口，未做美化修饰）。</p>
+          </div>
+          <div class="lp-grid2 lp-shots">
+            <figure class="lp-shot lp-reveal" data-fx="left">
+              <!-- 截图统一走 <picture>：WebP 优先、PNG 兜底。
+                   display:contents 的理由见上方 hero 处注释（保持 img 仍是 figure 的直接子元素）。 -->
+              <picture style="display: contents">
+                <source srcset="/shots/schedule.webp" type="image/webp" />
+                <img
+                  src="/shots/schedule.png"
+                  width="390"
+                  height="844"
+                  loading="lazy"
+                  decoding="async"
+                  alt="课表周视图：一周的课程按颜色铺在格子里，顶部显示本周学分"
+                />
+              </picture>
+              <figcaption>
+                <b>课表 · 周视图</b>
+                一周的课按颜色铺在格子里，哪天有课、什么时候没空，一眼就能看出来。
+              </figcaption>
+            </figure>
+            <figure class="lp-shot lp-reveal" data-fx="right" style="--lp-delay: 90ms">
+              <picture style="display: contents">
+                <source srcset="/shots/ddl.webp" type="image/webp" />
+                <img
+                  src="/shots/ddl.png"
+                  width="390"
+                  height="844"
+                  loading="lazy"
+                  decoding="async"
+                  alt="DDL 列表：按截止时间分组，今天与明天截止的会高亮，考试单独标记"
+                />
+              </picture>
+              <figcaption>
+                <b>DDL 与考试</b>
+                按截止时间自动分组，今天到期的高亮提醒，考试会单独标出来。
+              </figcaption>
+            </figure>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 核心能力 ============ -->
+      <section class="lp-sec" id="features">
+        <!-- 柔光层：给玻璃卡一点可被 backdrop-filter 模糊的底色。
+             纯色背景上模糊是看不出效果的，这一层是"玻璃感"成立的前提。 -->
+        <div class="lp-glow-soft" aria-hidden="true"></div>
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">核心能力</p>
+            <h2 class="lp-h2">开学时最折腾的三件事，一次理顺。</h2>
+            <p class="lp-sec-sub">不追求功能多，只把这三个高频场景做顺。</p>
+          </div>
+          <!-- 数据条：每个数字都取自本页其它区块已经写明的事实（三步上手 / 一个页面 /
+               不收费用 / 不接入第三方统计与广告），不新增任何未经核实的指标。
+               数字由 landing.ts 做进位滚动，HTML 里写的是最终值 —— 脚本没跑也是对的。 -->
+          <div class="lp-stats lp-reveal">
+            <div class="lp-stat">
+              <span class="lp-stat-n" data-count-to="3">3</span><span class="lp-stat-u">步</span>
+              <span class="lp-stat-l">从导入课表到用起来</span>
+            </div>
+            <div class="lp-stat">
+              <span class="lp-stat-n" data-count-to="1">1</span><span class="lp-stat-u">个页面</span>
+              <span class="lp-stat-l">课表、DDL、考试全管住</span>
+            </div>
+            <div class="lp-stat">
+              <span class="lp-stat-n" data-count-to="0">0</span><span class="lp-stat-u">元</span>
+              <span class="lp-stat-l">永久免费，没有付费功能</span>
+            </div>
+            <div class="lp-stat">
+              <span class="lp-stat-n" data-count-to="0">0</span><span class="lp-stat-u">个</span>
+              <span class="lp-stat-l">广告与第三方统计</span>
+            </div>
+          </div>
+          <div class="lp-cards">
+            <article class="lp-card lp-reveal" data-fx="tilt">
+              <span class="lp-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 3v12" /><path d="M7 11l5 5 5-5" /><path d="M4 21h16" />
+                </svg>
+              </span>
+              <h3>一键导入课表</h3>
+              <p>填学号与教务密码，自动读取本学期课名、上课时间、教室与学分，不用手动一条条敲。也支持上传课表截图识别。</p>
+            </article>
+            <article class="lp-card lp-reveal" data-fx="tilt" style="--lp-delay: 90ms">
+              <span class="lp-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="13" r="8" /><path d="M12 9v4l3 2" /><path d="M9 3h6" />
+                </svg>
+              </span>
+              <h3>DDL 与考试倒计时</h3>
+              <p>作业、考试统一管理，按紧急程度自动排序；今天截止的高亮提醒，不会再因为记不清日子而漏交。</p>
+            </article>
+            <article class="lp-card lp-reveal" data-fx="tilt" style="--lp-delay: 180ms">
+              <span class="lp-ico" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18" /><path d="M8 3v4M16 3v4" /><path d="M9 15h6" />
+                </svg>
+              </span>
+              <h3>写入系统日历</h3>
+              <p>课表一键同步到手机系统日历，提前 10 分钟提醒，不打开 App 也能收到，离线同样有效。</p>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 应用矩阵 ============
+           内容源是 web/src/lib/appRegistry.ts 里的 APP_ENTRIES（16 条）：
+           标题、分类、图标、分级都照抄那张表，改注册表时这里要同步。
+           ⚠️ 图标是内联 SVG（沿用本页 viewBox 24 / stroke 1.8 / currentColor 的约定），
+              不引任何图标库 —— CSP 是 script-src 'self'，且全站零依赖。
+           ⚠️ 分级（beta）如实标出来：这些应用靠解析学校系统页面工作，学校改版时会失效。
+              标出来是"诚实"，不是"免责声明"，所以文案里也写清了失效时的表现。 -->
+      <section class="lp-sec lp-alt" id="apps">
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">应用</p>
+            <h2 class="lp-h2">16 个应用，一个账号全打通。</h2>
+            <p class="lp-sec-sub">
+              课表、DDL、考试是底座；在其上接入了教务、课程平台、校园卡、邮箱等日常要跑的地方。
+              右下角标 <span class="lp-app-tag lp-app-tag-inline">beta</span> 的应用依赖解析学校系统页面，
+              学校改版期间可能暂时失效，届时会在应用内直接提示原因，不会给你一个转圈不动的空页面。
+            </p>
+          </div>
+
+          <div class="lp-apps">
+            <!-- 学习 -->
+            <section class="lp-app-group lp-reveal">
+              <h3 class="lp-app-cat">
+                <span class="lp-app-dot" data-cat="study" aria-hidden="true"></span>学习
+                <span class="lp-app-count">7 个</span>
+              </h3>
+              <ul class="lp-app-list">
+                <li class="lp-app" data-cat="study">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h9.5L19 7v13a1.5 1.5 0 0 1-1.5 1.5h-11A1.5 1.5 0 0 1 5 20V5a1.5 1.5 0 0 1 1-1.5Z" /><path d="M15 3.5V7h4" /><path d="m8.5 12.5 1.6 1.6 3.4-3.4" /><path d="M8.5 17.5h7" /></svg></span>
+                  <span class="lp-app-name">课程平台作业</span>
+                </li>
+                <li class="lp-app" data-cat="study">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16" /><rect x="5.5" y="12" width="3" height="5.5" rx="1" /><rect x="10.5" y="8.5" width="3" height="9" rx="1" /><rect x="15.5" y="5" width="3" height="12.5" rx="1" /></svg></span>
+                  <span class="lp-app-name">成绩查询</span>
+                  <span class="lp-app-tag">beta</span>
+                </li>
+                <li class="lp-app" data-cat="study">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5.5 3.5h9.5l4 4v13a1 1 0 0 1-1 1h-12.5a1 1 0 0 1-1-1V4.5a1 1 0 0 1 1-1z" /><path d="M15 3.5v4h4" /><path d="M8 12.5h7M8 16h4.5" /></svg></span>
+                  <span class="lp-app-name">考试安排</span>
+                </li>
+                <li class="lp-app" data-cat="study">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 7.5A1.5 1.5 0 0 1 5 6h3.6l1.7 2h8.2A1.5 1.5 0 0 1 20 9.5v8A1.5 1.5 0 0 1 18.5 19h-13A1.5 1.5 0 0 1 4 17.5Z" /><path d="M9 12h6M9 15h4" /></svg></span>
+                  <span class="lp-app-name">课件下载</span>
+                </li>
+                <li class="lp-app" data-cat="study">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2" /><path d="M3.5 9.5h17" /><path d="M8 3.5v3M16 3.5v3" /><path d="M7.5 13h2M11 13h2M14.5 13h2M7.5 16.5h2M11 16.5h2" /></svg></span>
+                  <span class="lp-app-name">校历</span>
+                </li>
+                <li class="lp-app" data-cat="study">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.8" y="4.2" width="18.4" height="12.4" rx="2" /><path d="M8.5 20h7M12 16.6V20" /><path d="m9.6 8.2-1.8 2.2 1.8 2.2" /><path d="m14.4 8.2 1.8 2.2-1.8 2.2" /><path d="M13.2 7.8l-2.4 4.8" /></svg></span>
+                  <span class="lp-app-name">CITEL</span>
+                  <span class="lp-app-tag">beta</span>
+                </li>
+                <li class="lp-app" data-cat="study">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 3.5h5M10.5 3.5v5.2L5.6 17a2.6 2.6 0 0 0 2.3 3.9h8.2A2.6 2.6 0 0 0 18.4 17l-4.9-8.3V3.5" /><path d="M7.8 14.2h8.4" /><circle cx="10.4" cy="16.8" r="0.9" fill="currentColor" stroke="none" /><circle cx="13.9" cy="17.8" r="0.7" fill="currentColor" stroke="none" /></svg></span>
+                  <span class="lp-app-name">物理在线</span>
+                  <span class="lp-app-tag">beta</span>
+                </li>
+              </ul>
+            </section>
+
+            <!-- 校园服务 -->
+            <section class="lp-app-group lp-reveal" style="--lp-delay: 80ms">
+              <h3 class="lp-app-cat">
+                <span class="lp-app-dot" data-cat="campus" aria-hidden="true"></span>校园服务
+                <span class="lp-app-count">7 个</span>
+              </h3>
+              <ul class="lp-app-list">
+                <li class="lp-app" data-cat="campus">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.8" y="5.5" width="18.4" height="13" rx="2.4" /><path d="M2.8 9.6h18.4" /><path d="M6.2 14.2h4.2" /></svg></span>
+                  <span class="lp-app-name">校园卡</span>
+                </li>
+                <li class="lp-app" data-cat="campus">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.2 10.2a11 11 0 0 1 15.6 0" /><path d="M7.2 13.4a6.8 6.8 0 0 1 9.6 0" /><path d="M10.1 16.6a2.7 2.7 0 0 1 3.8 0" /><circle cx="12" cy="19.2" r="0.9" fill="currentColor" stroke="none" /></svg></span>
+                  <span class="lp-app-name">校园网</span>
+                </li>
+                <li class="lp-app" data-cat="campus">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.8" y="5.5" width="18.4" height="13" rx="2.2" /><path d="m3.6 7.4 7.3 5.2a2 2 0 0 0 2.2 0l7.3-5.2" /></svg></span>
+                  <span class="lp-app-name">校园邮箱</span>
+                </li>
+                <li class="lp-app" data-cat="campus">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V6.2a1.2 1.2 0 0 1 .8-1.13l7-2.5a1.2 1.2 0 0 1 1.6 1.13V20" /><path d="M13.4 9.5H19a1 1 0 0 1 1 1V20" /><path d="M2.8 20h18.4" /><path d="M7 8.5h3M7 12h3M16 13v3" /></svg></span>
+                  <span class="lp-app-name">教室人数</span>
+                  <span class="lp-app-tag">beta</span>
+                </li>
+                <li class="lp-app" data-cat="campus">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.2" y="3.2" width="17.6" height="17.6" rx="2" /><path d="M8.2 3.2v17.6M14.8 3.2v17.6M3.2 8.2h17.6M3.2 14.8h17.6" /><rect x="8.2" y="8.2" width="6.6" height="6.6" fill="currentColor" stroke="none" opacity="0.55" /></svg></span>
+                  <span class="lp-app-name">教室占用</span>
+                  <span class="lp-app-tag">beta</span>
+                </li>
+                <li class="lp-app" data-cat="campus">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.1" fill="currentColor" stroke="none" /><ellipse cx="12" cy="12" rx="9.2" ry="3.8" /><ellipse cx="12" cy="12" rx="9.2" ry="3.8" transform="rotate(60 12 12)" /><ellipse cx="12" cy="12" rx="9.2" ry="3.8" transform="rotate(120 12 12)" /></svg></span>
+                  <span class="lp-app-name">物理实验</span>
+                  <span class="lp-app-tag">beta</span>
+                </li>
+                <li class="lp-app" data-cat="campus">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="15" rx="2.2" /><path d="M3.5 9.5h17" /><path d="M8 3.5v3M16 3.5v3" /><path d="m8.6 14.6 2.2 2.2 4.4-4.4" /></svg></span>
+                  <span class="lp-app-name">演示实验</span>
+                  <span class="lp-app-tag">beta</span>
+                </li>
+              </ul>
+            </section>
+
+            <!-- 工具 -->
+            <section class="lp-app-group lp-reveal" style="--lp-delay: 160ms">
+              <h3 class="lp-app-cat">
+                <span class="lp-app-dot" data-cat="tool" aria-hidden="true"></span>工具
+                <span class="lp-app-count">2 个</span>
+              </h3>
+              <ul class="lp-app-list">
+                <li class="lp-app" data-cat="tool">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3.5h12A1.5 1.5 0 0 1 19.5 5v14a1.5 1.5 0 0 1-1.5 1.5H6A1.5 1.5 0 0 1 4.5 19V5A1.5 1.5 0 0 1 6 3.5Z" /><path d="M8 8h8M8 11.5h8M8 15h4.5" /><circle cx="15.6" cy="16.2" r="2.3" /></svg></span>
+                  <span class="lp-app-name">成绩单下载</span>
+                  <span class="lp-app-tag">beta</span>
+                </li>
+                <li class="lp-app" data-cat="tool">
+                  <span class="lp-app-ico" aria-hidden="true"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 11.5a7.5 7.5 0 0 1 12.9-5.2L20 9" /><path d="M20 4.6V9h-4.4" /><path d="M19.5 12.5a7.5 7.5 0 0 1-12.9 5.2L4 15" /><path d="M4 19.4V15h4.4" /></svg></span>
+                  <span class="lp-app-name">数据同步</span>
+                </li>
+              </ul>
+            </section>
+          </div>
+
+          <p class="lp-apps-note lp-reveal">
+            独立平台（CITEL / 物理在线 / 物理实验 / 演示实验）用各自的账号，密码单独加密保存，
+            与登录本工具的密码互不相干。
+            <a href="/app">打开应用 →</a>
+          </p>
+        </div>
+      </section>
+
+      <!-- ============ 桌面小部件 ============
+           这一段讲的是 Android 桌面小组件（android-shell 里的三个 AppWidgetProvider）。
+           配图是一块**纯 CSS 画的**小组件示意，不是截图 —— 原因是截图会和真实桌面壁纸、
+           图标包、状态栏版本绑死，换个系统主题就"不像"了；示意版反而永远准确，
+           且不需要为深浅色各维护一张图。示意层 aria-hidden，信息全在左侧文字里。 -->
+      <section class="lp-sec" id="widgets">
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">桌面小部件</p>
+            <h2 class="lp-h2">不解锁，今天上什么课已经在桌面上。</h2>
+            <p class="lp-sec-sub">
+              Android 桌面小组件，三种尺寸：2×2 只放下一节课，4×2 放全天，4×3 带上 DDL 列表。
+              数据由 App 在前台同步后写进本地快照，小组件本身<strong>不发任何网络请求</strong>。
+            </p>
+          </div>
+
+          <div class="lp-widgets">
+            <ul class="lp-safe lp-widget-list">
+              <li>
+                <b>三种尺寸，按桌面空隙挑</b>
+                2×2、4×2、4×3 各司其职；同一份快照，三种排版，不用分别设置。
+              </li>
+              <li>
+                <b>不发网络请求，也不碰你的账号</b>
+                小组件只读 App 写下的本地快照来画图，自身不发起任何网络请求，
+                也读不到登录凭据（token 只存在 WebView 的 localStorage 里，原生侧拿不到）。
+                断网、关机重启后显示的都是上次同步的内容。
+              </li>
+              <li>
+                <b>跟着系统深浅色走</b>
+                配色由 launcher 按系统主题 inflate，浅色/深色两套都已适配，不需要在 App 里另设。
+              </li>
+              <li>
+                <b>点一下就回到应用</b>
+                点课程直接打开 App 对应的课表页；快照过期时显示「打开 App 同步」的引导态，
+                而不是一屏空白。
+              </li>
+            </ul>
+
+            <div class="lp-widget-visual" aria-hidden="true">
+              <!-- 4×3 大号：标题 + 课程行 + 底部 DDL 计数 -->
+              <div class="lp-wcard lp-wcard-big">
+                <div class="lp-wcard-top">
+                  <span class="lp-wcard-week">第 9 周 · 周三</span>
+                  <span class="lp-wcard-sync">已同步</span>
+                </div>
+                <ul class="lp-wcard-rows">
+                  <li class="lp-wrow" data-tone="a">
+                    <span class="lp-wrow-time">08:00</span>
+                    <span class="lp-wrow-main">
+                      <b>高等数学</b>
+                      <i>思源楼 302</i>
+                    </span>
+                  </li>
+                  <li class="lp-wrow" data-tone="b">
+                    <span class="lp-wrow-time">10:10</span>
+                    <span class="lp-wrow-main">
+                      <b>大学物理</b>
+                      <i>九教 105</i>
+                    </span>
+                  </li>
+                  <li class="lp-wrow" data-tone="c">
+                    <span class="lp-wrow-time">14:00</span>
+                    <span class="lp-wrow-main">
+                      <b>数据结构</b>
+                      <i>计算机楼 401</i>
+                    </span>
+                  </li>
+                </ul>
+                <div class="lp-wcard-foot">
+                  <span>还有 2 个 DDL</span>
+                  <span class="lp-wcard-dot"></span>
+                </div>
+              </div>
+              <!-- 4×2 中号 -->
+              <div class="lp-wcard lp-wcard-mid">
+                <div class="lp-wcard-top">
+                  <span class="lp-wcard-week">第 9 周 · 周三</span>
+                </div>
+                <ul class="lp-wcard-rows">
+                  <li class="lp-wrow" data-tone="a">
+                    <span class="lp-wrow-time">08:00</span>
+                    <span class="lp-wrow-main"><b>高等数学</b></span>
+                  </li>
+                  <li class="lp-wrow" data-tone="b">
+                    <span class="lp-wrow-time">10:10</span>
+                    <span class="lp-wrow-main"><b>大学物理</b></span>
+                  </li>
+                </ul>
+              </div>
+              <!-- 2×2 小号 -->
+              <div class="lp-wcard lp-wcard-small">
+                <div class="lp-wcard-top">
+                  <span class="lp-wcard-sync">下一节</span>
+                </div>
+                <p class="lp-wcard-next">高等数学</p>
+                <p class="lp-wcard-loc">08:00 · 思源楼 302</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 三步上手 ============ -->
+      <section class="lp-sec lp-alt" id="steps">
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">怎么用</p>
+            <h2 class="lp-h2">三分钟，把这一学期理清楚。</h2>
+          </div>
+          <!-- lp-steps 上的 is-in 负责"把连接线画出来"；每个 lp-step 的 is-in 负责点亮它自己的左侧进度条 -->
+          <ol class="lp-steps lp-reveal">
+            <li class="lp-step lp-reveal" data-fx="left">
+              <span class="lp-step-n">01</span>
+              <div>
+                <h3>打开网页，或下载 App</h3>
+                <p>网页版打开就能用，不需要注册；装上 Android App 可以额外解锁系统日历提醒与离线查看。</p>
+              </div>
+            </li>
+            <li class="lp-step lp-reveal" data-fx="left" style="--lp-delay: 90ms">
+              <span class="lp-step-n">02</span>
+              <div>
+                <h3>一键导入本学期课表</h3>
+                <p>输入学号与教务密码，课名、时间、教室、学分自动读进来；也可以直接上传课表截图识别。</p>
+              </div>
+            </li>
+            <li class="lp-step lp-reveal" data-fx="left" style="--lp-delay: 180ms">
+              <span class="lp-step-n">03</span>
+              <div>
+                <h3>加上作业与考试，交给它盯</h3>
+                <p>记下截止时间，它按紧急度排序提醒；考试安排也能从教务系统一键抓取，自动生成待办。</p>
+              </div>
+            </li>
+          </ol>
+        </div>
+      </section>
+
+      <!-- ============ 下载 ============ -->
+      <section class="lp-sec" id="download">
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">Android 客户端</p>
+            <h2 class="lp-h2">装一个 App，课表能进系统日历。</h2>
+            <p class="lp-sec-sub">网页版功能齐全；装上 App 之后，课表可以写进手机日历，提前 10 分钟提醒，离线也能看。</p>
+          </div>
+
+          <div class="lp-dl">
+            <!-- 版本卡：内容全部由 /downloads/manifest.json 填充（单一事实来源），
+                 发新版本时只需替换 APK 文件并更新该清单，不用改页面代码。 -->
+            <div class="lp-panel lp-reveal">
+              <h3>交大小助手 · Android 版</h3>
+              <p class="lp-panel-sub" data-apk-pkg>包名 com.bjtu.helper · 仅在本站分发</p>
+              <dl class="lp-meta">
+                <div><dt>版本</dt><dd data-apk-version>—</dd></div>
+                <div><dt>更新日期</dt><dd data-apk-date>—</dd></div>
+                <div><dt>文件大小</dt><dd data-apk-size>—</dd></div>
+                <div><dt>系统要求</dt><dd data-apk-os>—</dd></div>
+              </dl>
+              <p class="lp-hash">
+                <code data-apk-sha>下载信息载入中…</code>
+                <button class="lp-copy" id="copySha" type="button">复制</button>
+              </p>
+              <p class="lp-hint">SHA-256 校验值 · 下载后核对，不一致请勿安装</p>
+              <a class="lp-btn lp-btn-primary lp-dl-btn" id="apkBtn" href="/download/latest" download>下载安装包</a>
+              <div class="lp-log">
+                <h4>更新日志</h4>
+                <ul data-apk-changelog><li>载入中…</li></ul>
+              </div>
+            </div>
+
+            <div class="lp-panel lp-reveal" data-fx="right" style="--lp-delay: 90ms">
+              <h3>安装前请读一下</h3>
+              <p class="lp-panel-sub">这些是事实说明，不是免责声明</p>
+              <ul class="lp-safe">
+                <li>
+                  <b>提示「未知来源」是正常的。</b>
+                  这个 App 没有上架任何应用商店，需要在系统设置里允许该来源安装。
+                </li>
+                <li>
+                  <b>当前为 debug 签名版本。</b>
+                  仅用于校园内部分发，未做应用商店发布签名，部分手机管家可能提示风险。
+                </li>
+                <li>
+                  <b>只申请三个权限：</b>
+                  联网、写入日历、拍照（用于识别课表，可以拒绝）。不申请通讯录、短信、定位，也不后台常驻。
+                </li>
+                <li>
+                  <b>请只从本站下载。</b>
+                  其他渠道的安装包请勿信任；下载后可用上面的 SHA-256 自行校验。
+                </li>
+              </ul>
+              <p class="lp-cmd">
+                电脑上核对校验值：
+                <code>certutil -hashfile 文件名 SHA256</code>
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 隐私说明 ============ -->
+      <section class="lp-sec lp-alt" id="privacy">
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">隐私与数据</p>
+            <h2 class="lp-h2">说清楚它做了什么、没做什么。</h2>
+          </div>
+          <!-- ⚠️ 本区每一句都必须是事实。改动前请核对代码实际行为，写不实的承诺比不写更糟。
+               动效上这里刻意保持安静：只做普通淡入，不做聚光/视差/位移。 -->
+          <div class="lp-grid2">
+            <div class="lp-note lp-reveal">
+              <b>密码怎么存</b>
+              账号密码经散列后存储，服务端不保留明文；用于登录学校门户的凭据只在导入课表时使用。
+            </div>
+            <div class="lp-note lp-reveal" style="--lp-delay: 70ms">
+              <b>数据存在哪</b>
+              存在项目自建的服务器上，不接入第三方统计或广告平台，不做用户画像。
+            </div>
+            <div class="lp-note lp-reveal" style="--lp-delay: 140ms">
+              <b>不做的事</b>
+              不发广告、不售卖或交换个人数据、不把数据用于模型训练。
+            </div>
+            <div class="lp-note lp-reveal" style="--lp-delay: 210ms">
+              <b>怎么删掉</b>
+              可以在应用内自助清除自己的数据；也可以直接联系作者要求删除账号与全部记录。
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 常见问题 ============ -->
+      <section class="lp-sec" id="faq">
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">常见问题</p>
+            <h2 class="lp-h2">你可能想问的。</h2>
+          </div>
+          <!-- 每条问答外面多包一层 .lp-faq-wrap：<details> 原生不支持高度过渡，
+               平滑展开靠 landing.ts 在这层上改 grid-template-rows（0fr ↔ 1fr）。
+               脚本没跑时（无 JS / 减弱动效）走原生开关，行为不受影响。 -->
+          <div class="lp-faq">
+            <details open>
+              <summary><span class="lp-faq-n">01</span><span class="lp-faq-q">需要注册才能用吗？</span></summary>
+              <div class="lp-faq-wrap">
+                <div class="lp-faq-a">
+                  不需要。打开网页就是一个可以正常使用的身份，可以直接导入课表、记 DDL。之后想换设备继续用，再注册把数据保存到账号里；未登录期间记录的内容会自动带过去。
+                </div>
+              </div>
+            </details>
+            <details>
+              <summary><span class="lp-faq-n">02</span><span class="lp-faq-q">要收费吗？</span></summary>
+              <div class="lp-faq-wrap">
+                <div class="lp-faq-a">不收。这是个人自建的工具，跑在自己的服务器上，目前没有任何付费功能。</div>
+              </div>
+            </details>
+            <details>
+              <summary><span class="lp-faq-n">03</span><span class="lp-faq-q">会把我的教务密码存下来吗？</span></summary>
+              <div class="lp-faq-wrap">
+                <div class="lp-faq-a">
+                  账号密码经散列后存储，服务端不保存明文；用于登录学校门户读取课表的凭据只在导入那一刻使用。具体实现以「隐私与数据」区块的说明为准。
+                </div>
+              </div>
+            </details>
+            <details>
+              <summary><span class="lp-faq-n">04</span><span class="lp-faq-q">安装时提示「未知来源」怎么办？</span></summary>
+              <div class="lp-faq-wrap">
+                <div class="lp-faq-a">
+                  这是正常现象，因为 App 没有走应用商店分发。在手机「设置 → 安全 → 安装未知应用」里，允许浏览器或文件管理器安装即可。
+                </div>
+              </div>
+            </details>
+            <details>
+              <summary><span class="lp-faq-n">05</span><span class="lp-faq-q">iPhone 能用吗？</span></summary>
+              <div class="lp-faq-wrap">
+                <div class="lp-faq-a">网页版在 iPhone 上可以正常使用；把课表写入系统日历、提前提醒这个功能目前只有 Android 客户端支持。</div>
+              </div>
+            </details>
+            <details>
+              <summary><span class="lp-faq-n">06</span><span class="lp-faq-q">换手机之后数据还在吗？</span></summary>
+              <div class="lp-faq-wrap">
+                <div class="lp-faq-a">注册并登录后，课表、DDL 与考试都保存在账号里，换设备登录就能看到。未登录状态下，数据只保存在当前设备。</div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 联系 ============ -->
+      <section class="lp-sec lp-alt" id="contact">
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">联系与反馈</p>
+            <h2 class="lp-h2">有问题，进群里说。</h2>
+            <p class="lp-sec-sub">用得不顺、发现 Bug、想要新功能，都可以说。</p>
+          </div>
+          <div class="lp-grid2">
+            <div class="lp-panel lp-reveal">
+              <h3>扫码进 QQ 群</h3>
+              <p class="lp-panel-sub">群号 1132499591 · 有问题直接在群里问，看到都会回</p>
+              <div class="lp-qr-row">
+                <figure class="lp-qr">
+                  <button class="lp-qr-btn" type="button" data-zoom="/qr/qq-group.jpg">
+                    <img
+                      src="/qr/qq-group.jpg"
+                      width="640"
+                      height="798"
+                      loading="lazy"
+                      decoding="async"
+                      alt="QQ 群二维码：用手机 QQ 扫一扫加入「布洛芬的药房」群"
+                    />
+                  </button>
+                  <figcaption>QQ 群码 · 点击放大</figcaption>
+                </figure>
+              </div>
+              <p class="lp-hint lp-hint-mt">小屏上扫不出来时，点一下二维码放大再扫。</p>
+            </div>
+            <div class="lp-panel lp-reveal" data-fx="right" style="--lp-delay: 90ms">
+              <h3>其他联系方式</h3>
+              <p class="lp-panel-sub">两种方式，哪个方便用哪个</p>
+              <ul class="lp-safe">
+                <li>
+                  <b>应用内反馈（推荐）</b>
+                  进入应用后在「我的 → 反馈」里提交，能带上你的账号与页面信息，定位问题更快。
+                  <a href="/app">打开应用 →</a>
+                </li>
+                <li>
+                  <b>QQ 群里问</b>
+                  搜群号 <code>1132499591</code>，或者扫左边的二维码进群（「布洛芬的药房」）。
+                </li>
+              </ul>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- ============ 打赏 ============ -->
+      <section class="lp-sec" id="tip">
+        <div class="lp-wrap">
+          <div class="lp-sec-head lp-reveal">
+            <p class="lp-eyebrow">支持一下</p>
+            <h2 class="lp-h2">觉得好用？请我喝杯咖啡。</h2>
+            <p class="lp-sec-sub">完全自愿。工具会一直免费，打赏只用来分担服务器和域名的开销。</p>
+          </div>
+          <div class="lp-panel lp-tip lp-reveal" data-fx="zoom">
+            <figure class="lp-qr">
+              <button class="lp-qr-btn" type="button" data-zoom="/qr/alipay-tip.jpg">
+                <img
+                  src="/qr/alipay-tip.jpg"
+                  width="640"
+                  height="959"
+                  loading="lazy"
+                  decoding="async"
+                  alt="支付宝收款码：打开支付宝扫一扫支持作者"
+                />
+              </button>
+              <figcaption>支付宝扫码 · 点击放大</figcaption>
+            </figure>
+            <div class="lp-tip-copy">
+              <p>服务器、域名这些都是自费在跑。打赏不是必须的 —— 你把这一学期管明白了，这个项目就没白做。</p>
+              <p class="lp-hint">金额随心情，一分也是心意。想让我知道是谁的话，可以在备注里留个学号后四位。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ 结尾行动 ============ -->
+      <section class="lp-end">
+        <!-- 与主视觉呼应的第二层极光，把首尾收住 -->
+        <div class="lp-aurora lp-aurora-end" aria-hidden="true"></div>
+        <div class="lp-wrap lp-reveal">
+          <h2>现在就开始，把这一学期管明白。</h2>
+          <p>不用注册，打开就能用。三分钟导入课表，剩下的交给它。</p>
+          <div class="lp-cta-row lp-center">
+            <a class="lp-btn lp-btn-primary" href="/app">立即开始使用</a>
+            <a class="lp-btn lp-btn-ghost" href="#download">下载 Android 版</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="lp-foot">
+      <div class="lp-wrap lp-foot-in">
+        <span>交大小助手 · 个人自建的非官方工具</span>
+        <span class="lp-foot-links">
+          <a href="#features">功能</a>
+          <a href="#apps">应用</a>
+          <a href="#widgets">小部件</a>
+          <a href="#download">下载</a>
+          <a href="#faq">常见问题</a>
+          <a href="#contact">联系</a>
+        </span>
+      </div>
+      <div class="lp-wrap lp-foot-icp" data-icp><!-- 备案号块：号码由 server 端在渲染时替换占位符
+             （server/src/index.ts 的 renderLanding），未配置 ICP_LICENSE 时**整个 div 被删掉**。
+             说明注释刻意留在 div 内部 —— 放在外面的话，删掉 div 后注释还会留在线上 HTML 里，
+             等于把内部实现细节发给每个访客。
+             ICP 备案号：工信部要求首页底部展示，并链接到 beian.miit.gov.cn；
+             留占位而不是硬编码，换域名/换主体时只改环境变量，不用重新构建前端。 --><a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer nofollow"
+           data-icp-link>__ICP_LICENSE__</a></div>
+    </footer>
+
+    <!-- 回到顶部：进度环 + 箭头。默认 opacity:0 / visibility:hidden（不是 hidden 属性 ——
+         那会被 .lp-top 的 display 规则覆盖掉），由 landing.ts 滚过一屏后加 .is-on 揭示。
+         脚本没跑时它永远不出现，也就不会留下一个点了没反应的死按钮。
+         它是功能而不是装饰，因此不受 lp-fx 门控（App WebView 里同样可用）。 -->
+    <button class="lp-top" id="toTop" type="button" aria-label="回到页面顶部">
+      <svg class="lp-top-ring" viewBox="0 0 44 44" aria-hidden="true">
+        <circle class="lp-top-track" cx="22" cy="22" r="19" />
+        <circle class="lp-top-bar" cx="22" cy="22" r="19" />
+      </svg>
+      <svg class="lp-top-arrow" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M12 19V6" />
+        <path d="M6 11.5 12 5.5l6 6" />
+      </svg>
+    </button>
+
+    <script type="module" src="./src/landing/landing.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 列表里的提示行：无快照 / 课表过期 / 今天没课 等占位文案（单 TextView 即整行） -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/item_note"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:paddingTop="6dp"
+    android:paddingBottom="6dp"
+    android:textSize="12sp"
+    android:textColor="@color/widget_secondary"
+    android:maxLines="1"
+    android:ellipsize="end" />

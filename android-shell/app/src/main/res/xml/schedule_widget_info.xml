@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  AppWidget 提供者信息：交大小助手 · 今日课程 + DDL 倒计时。
+
+  尺寸：默认占 4×3 格（targetCellWidth/Height，API 31+ 起生效），
+  minWidth/minHeight 250×180dp 是老 Launcher 的回退口径。
+  updatePeriodMillis 系统 下限就是 30 分钟 —— 足够"还剩 N 天"级别的倒计时保持新鲜；
+  精确到分钟级别的刷新靠网页推送（BjtuWidget.update）与日期变更广播，不靠这里。
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="250dp"
+    android:minHeight="180dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="3"
+    android:updatePeriodMillis="1800000"
+    android:initialLayout="@layout/widget_schedule"
+    android:previewLayout="@layout/widget_schedule"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:description="@string/widget_desc" />

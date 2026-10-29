@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  课程行 · 单行紧凑（4×2 标准版）：色条 + 开始时间 + 课名 + 教室，一节课一行。
+  4×2 的高度铺两行式行只装得下一行，紧凑行一节课一行信息密度才对。
+  文字颜色为占位，实际由 ScheduleWidgetListService.getViewAt 按状态设置。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/item_root"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:gravity="center_vertical"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <TextView
+        android:id="@+id/item_bar"
+        android:layout_width="4dp"
+        android:layout_height="14dp" />
+
+    <TextView
+        android:id="@+id/item_t_start"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:minWidth="40dp"
+        android:layout_marginStart="8dp"
+        android:textSize="11sp"
+        android:textStyle="bold"
+        android:textColor="@color/widget_on_surface"
+        android:maxLines="1" />
+
+    <TextView
+        android:id="@+id/item_name"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="6dp"
+        android:textSize="12sp"
+        android:textColor="@color/widget_on_surface"
+        android:maxLines="1"
+        android:ellipsize="end" />
+
+    <TextView
+        android:id="@+id/item_place"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="6dp"
+        android:textSize="11sp"
+        android:textColor="@color/widget_secondary"
+        android:maxLines="1"
+        android:ellipsize="end" />
+</LinearLayout>

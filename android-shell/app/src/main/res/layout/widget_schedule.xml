@@ -1,0 +1,98 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面小组件布局（4×3 完整版与 4×2 标准版共用）：
+  顶栏 + 课程列表（ListView，weight=1 吃满中间全部剩余高度、可滚动）+ 沉底的 DDL 行。
+  v1.8 用固定 4 行课程被反馈"4×3 只用了一半"，v1.9 改列表：有几节显示几节、
+  超出滚动，页脚永远钉在底部 —— 空间不再浪费。
+
+  ⚠️ RemoteViews 只支持白名单控件（LinearLayout / ListView / TextView 等）；
+     颜色全部走 @color（values / values-night 两套）跟随系统深浅色。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@drawable/widget_bg"
+    android:paddingStart="14dp"
+    android:paddingEnd="14dp"
+    android:paddingTop="11dp"
+    android:paddingBottom="11dp">
+
+    <!-- 顶栏：品牌名 + 日期/周次 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/widget_title"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/app_name"
+            android:textSize="13sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_accent" />
+
+        <TextView
+            android:id="@+id/widget_date"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:textSize="11sp"
+            android:textColor="@color/widget_secondary"
+            android:maxLines="1"
+            android:ellipsize="end" />
+    </LinearLayout>
+
+    <!-- 今日课程：行数据由 ScheduleWidgetListService 提供（几节显示几节，超出滚动） -->
+    <ListView
+        android:id="@+id/course_list"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:layout_marginTop="4dp"
+        android:divider="@null"
+        android:dividerHeight="0dp"
+        android:listSelector="@android:color/transparent"
+        android:scrollbars="none" />
+
+    <!-- DDL 区上方的细分隔线 -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:layout_marginTop="7dp"
+        android:background="@color/widget_divider" />
+
+    <!-- 最近 DDL：标题（左）+ 倒计时（右） -->
+    <LinearLayout
+        android:id="@+id/ddl_row"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="7dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/ddl_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textSize="12sp"
+            android:textColor="@color/widget_on_surface"
+            android:maxLines="1"
+            android:ellipsize="end" />
+
+        <TextView
+            android:id="@+id/ddl_countdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:textColor="@color/widget_accent"
+            android:maxLines="1" />
+    </LinearLayout>
+</LinearLayout>

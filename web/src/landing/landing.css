@@ -1,0 +1,2472 @@
+/* ============================================================
+   交大小助手 · 首页（落地页）样式
+   ------------------------------------------------------------
+   隔离原则：所有选择器以 .lp / .lp- 前缀命名，**不复用应用 styles.css 里的任何令牌**。
+   原因：应用的强调色是由 applyAccent() 往 document.documentElement 写行内 CSS 变量
+   （--accent-h）才生效的，而首页不执行那段逻辑 —— 若这里写 hsl(var(--accent-h) …)，
+   变量取不到值，颜色会整片失效（小程序端踩过同类坑：WXSS 不解析 hsl(var(--x) …)）。
+   所以本文件自带一套完整令牌，深/浅两套都由 data-theme 驱动。
+
+   ⚠️ 动效的两道开关（由 public/landing-fx.js 在 <head> 里同步决定，早于首次绘制）：
+     - `html.lp-fx`     → 允许 JS 驱动的动效（滚动显隐 / 聚光 / 倾斜 / 进度条）。
+                          脚本挂掉时该 class 不会加上，内容默认可见，不会白屏。
+     - `html.lp-no-fx`  → 明确关闭：App WebView（; wv) / BjtuHelperApp）环境。
+                          此时连噪点、极光这些静态装饰层也一并去掉（WebView 里最省）。
+   另外 CSS 侧还有 @media (prefers-reduced-motion: reduce) 作为兜底（见文件末尾）。
+   ============================================================ */
+
+/* ================= 令牌 ================= */
+:root[data-theme='dark'] {
+  --lp-bg: #0e1013;
+  --lp-bg-2: #15181d;
+  --lp-bg-3: #1b1f26;
+  --lp-card: #171b21;
+  --lp-card-glass: rgba(23, 27, 33, 0.72);
+  --lp-border: #262c35;
+  --lp-border-strong: #333b47;
+  --lp-text: #eef1f5;
+  --lp-text-2: #9aa3ae;
+  /* ⚠️ 原为 #646d7a，对 --lp-bg 只有 ≈3.6:1，未达 WCAG AA(4.5:1)。
+     现值对 bg / bg-2 / bg-3 分别约 5.7 / 5.3 / 4.9 : 1，全部达标。 */
+  --lp-text-3: #838d9a;
+  --lp-accent: #3ca48c;
+  --lp-accent-2: #4fbfa4;
+  --lp-accent-soft: rgba(60, 164, 140, 0.14);
+  --lp-accent-line: rgba(60, 164, 140, 0.42);
+  --lp-accent-ink: #06120f;
+  --lp-gold: #e5b567;
+  --lp-gold-soft: rgba(229, 181, 103, 0.12);
+  /* 「金色当正文小字」专用色。--lp-gold 本身不能拿来当文字色：
+     它只用于描边、色点和渐变，从来没做过 4.5:1 的校验。
+     深色下 #e5b567 落在 gold-soft 底上实测 7.26:1，可直接复用。 */
+  --lp-gold-ink: #e5b567;
+  /* 应用分类色（学习 / 校园服务 / 工具）：色相借自应用内 --app-c-*，
+     但亮度各自上调 —— 应用里的三色是为深底上的小图标调的，
+     首页要用在"卡片 + 30px 色块"上，直接用会显得发灰。
+     暗色下均 ≥ 8:1 对 --lp-card，色块图标文字可读。 */
+  --lp-cat-study: #8fbcf0;
+  --lp-cat-campus: #86ced4;
+  --lp-cat-tool: #bcaaee;
+  --lp-nav: rgba(14, 16, 19, 0.86);
+  --lp-nav-solid: rgba(14, 16, 19, 0.97);
+  --lp-shadow: 0 16px 40px rgba(0, 0, 0, 0.42);
+  --lp-glow-1: rgba(60, 164, 140, 0.2);
+  --lp-glow-2: rgba(79, 191, 164, 0.1);
+  --lp-spot: rgba(79, 191, 164, 0.1);
+  --lp-sheen: rgba(255, 255, 255, 0.34);
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --lp-bg: #f4f6f9;
+  --lp-bg-2: #ffffff;
+  --lp-bg-3: #eceff4;
+  --lp-card: #ffffff;
+  --lp-card-glass: rgba(255, 255, 255, 0.74);
+  --lp-border: #dfe4ec;
+  --lp-border-strong: #c7cfdb;
+  --lp-text: #17202b;
+  --lp-text-2: #5c6875;
+  /* ⚠️ 原为 #8b96a5，对 --lp-bg 只有 ≈2.8:1，远未达 AA。现值约 4.9:1。 */
+  --lp-text-3: #626c79;
+  /* ⚠️ 原为 #208870，对 --lp-bg 只有 ≈4.0:1，且白字压在其上也只有 ≈4.4:1。
+     现值对 bg 约 5.3:1、白字压在其上约 5.7:1，双向达标。 */
+  --lp-accent: #16745f;
+  --lp-accent-2: #0f6350;
+  --lp-accent-soft: rgba(22, 116, 95, 0.1);
+  --lp-accent-line: rgba(22, 116, 95, 0.36);
+  --lp-accent-ink: #ffffff;
+  --lp-gold: #a9760f;
+  --lp-gold-soft: rgba(169, 118, 15, 0.12);
+  /* 亮色下 --lp-gold (#a9760f) 当小字只有 3.47:1（在 gold-soft/白卡上），不达 AA。
+     压到 #7d5507 后 5.77:1（白卡）/ 5.03:1（alt 底），beta 标签这类 10.5px 小字才过线。
+     只动"文字"，--lp-gold 的描边/色点用途不变（非文本对比度要求 3:1，原值够）。 */
+  --lp-gold-ink: #7d5507;
+  /* 亮色下的分类色：必须压暗才能压在白卡片上（借应用亮色档 #286eb8/#267b83/#7355ac 的思路，
+     再各自提到对 --lp-card(#fff) ≈ 5:1 以上）。 */
+  --lp-cat-study: #1f63a8;
+  --lp-cat-campus: #1d6f77;
+  --lp-cat-tool: #64489c;
+  --lp-nav: rgba(244, 246, 249, 0.86);
+  --lp-nav-solid: rgba(244, 246, 249, 0.97);
+  --lp-shadow: 0 16px 40px rgba(23, 40, 60, 0.12);
+  --lp-glow-1: rgba(22, 116, 95, 0.13);
+  --lp-glow-2: rgba(22, 116, 95, 0.07);
+  --lp-spot: rgba(22, 116, 95, 0.07);
+  --lp-sheen: rgba(255, 255, 255, 0.45);
+  color-scheme: light;
+}
+
+/* 动效令牌：集中在这里，避免散落到各区块 */
+:root {
+  --lp-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --lp-dur: 0.5s;
+  --lp-dur-fast: 0.25s;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+/* html 级横向溢出兜底必须有：任何超宽元素（长链接、固定宽卡片）一旦撑宽移动端
+   布局视口，所有 fixed 居中元素都会跟着整体偏移。 */
+html {
+  overflow-x: hidden;
+  scroll-behavior: smooth;
+}
+
+/* 锚点跳转时给吸顶导航留出空间，否则标题会被导航盖住 */
+[id] {
+  scroll-margin-top: 80px;
+}
+
+body.lp {
+  /* 噪点层是 body 的绝对定位伪元素，需要 body 成为包含块 */
+  position: relative;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--lp-text);
+  background: var(--lp-bg);
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* 数字统一走等宽字体：大号指标排列时字面宽度一致，节奏稳定，是"仪表盘感"的来源。
+   中文字体不做 Web 字体加载（体积 3–8MB），全部走系统栈。 */
+body.lp code,
+body.lp .lp-stat-n,
+body.lp .lp-step-n,
+body.lp .lp-meta dd,
+body.lp .lp-faq-n {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+
+body.lp h1,
+body.lp h2,
+body.lp h3 {
+  line-height: 1.2;
+  letter-spacing: -0.02em;
+}
+
+body.lp p {
+  margin: 0;
+}
+
+body.lp ul,
+body.lp ol {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ⚠️ 正文链接兜底。这里用 :where() 把特异度压到 **0**，是有意为之：
+   :where() 恒不贡献特异度，所以任何具体规则（.lp-nav-links a / .lp-foot a /
+   .lp-btn-* / .lp-skip）都能覆盖它，无需再靠 :not() 去猜要排除谁。
+   旧写法 `body.lp a:not(.lp-btn):not(.lp-brand)` 的实际特异度是 (0,3,2) ——
+   因为 :not(.x) 会把参数 .x 的特异度计入自身 —— 结果把 .lp-nav-links a(0,1,1)
+   和 .lp-foot a(0,1,1) 一起盖掉，导航与页脚链接被迫变成强调色，hover 变色也失效。
+   作者源永远优先于 UA 源，所以即使特异度为 0 也能覆盖浏览器默认链接色。 */
+:where(body.lp) :where(a:not(.lp-btn):not(.lp-brand)) {
+  color: var(--lp-accent);
+  text-decoration: none;
+}
+:where(body.lp) :where(a:not(.lp-btn):not(.lp-brand)):hover {
+  text-decoration: underline;
+}
+
+/* ================= 跳到主要内容 ================= */
+.lp-skip {
+  position: absolute;
+  left: 12px;
+  top: -70px;
+  z-index: 300;
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--lp-accent-ink);
+  background: var(--lp-accent);
+  text-decoration: none;
+  transition: top var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-skip:hover {
+  text-decoration: none;
+}
+.lp-skip:focus {
+  top: 12px;
+}
+
+/* ================= 噪点层 =================
+   固定覆盖整屏的细颗粒，用来消掉极光渐变在深色下的色带（banding）。
+   三处必须同时成立：pointer-events:none（否则全页不可点）、
+   z-index 低于放大层(200) 且低于吸顶导航(60)、以及 --lp-no-fx 下整层移除。 */
+html:not(.lp-no-fx) body.lp::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0.035;
+  background-repeat: repeat;
+  background-size: 140px 140px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ================= 极光层 =================
+   刻意用大半径 radial-gradient，而不是 filter: blur() —— 后者在移动端非常贵。
+   外层 overflow:hidden 只裁自己，不影响兄弟节点（手机截图的 3D 倾斜不会被切）。 */
+.lp-aurora {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lp-aurora::before,
+.lp-aurora::after {
+  content: '';
+  position: absolute;
+  border-radius: 50%;
+}
+.lp-aurora::before {
+  width: 720px;
+  height: 720px;
+  top: -330px;
+  left: -170px;
+  background: radial-gradient(circle, var(--lp-glow-1), transparent 68%);
+}
+.lp-aurora::after {
+  width: 620px;
+  height: 620px;
+  top: -190px;
+  right: -190px;
+  background: radial-gradient(circle, var(--lp-glow-2), transparent 70%);
+}
+.lp-aurora-end::before {
+  top: auto;
+  bottom: -400px;
+  left: 50%;
+  margin-left: -380px;
+  width: 760px;
+  height: 760px;
+}
+.lp-aurora-end::after {
+  display: none;
+}
+html.lp-no-fx .lp-aurora {
+  display: none;
+}
+
+/* 区块内的柔光（给玻璃卡一点可被模糊的底色，纯色背景上 backdrop-filter 看不出效果） */
+.lp-glow-soft {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.lp-glow-soft::before {
+  content: '';
+  position: absolute;
+  top: -90px;
+  left: 50%;
+  margin-left: -380px;
+  width: 760px;
+  height: 440px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, var(--lp-glow-2), transparent 70%);
+}
+html.lp-no-fx .lp-glow-soft {
+  display: none;
+}
+
+/* ================= 首屏滚动视差 =================
+   landing.ts 按"已滚过首屏的比例"写一个 --lp-py 变量，这里把它落到两个方向上：
+     极光往上飘、手机截图往上让位 —— 制造轻微纵深。
+   ⚠️ 位移加在**光斑伪元素**上而不是 .lp-aurora 容器上：容器是 inset:0 + overflow:hidden，
+   整体位移会让裁剪边从光斑中间切过去，露出一条硬边；光斑本身是大半径圆，挪几十像素看不出来。
+   ⚠️ 手机截图用 translate 而不是 transform —— .lp-phone 上有常驻的 3D 倾斜 transform。 */
+html.lp-fx .lp-aurora::before,
+html.lp-fx .lp-aurora::after {
+  translate: 0 var(--lp-py, 0px);
+}
+html.lp-fx .lp-hero-visual {
+  translate: 0 var(--lp-py, 0px);
+}
+/* 触屏补位：手机上鼠标倾斜这条路走不通（没有指针），主视觉于是完全静止，
+   "会动的首屏"就只剩左侧文字在入场。这里让手机截图跟着滚动做一次轻微转台：
+   角度同样落在 --rx/--ry 上，复用的就是上面那条 transform 声明，不额外加合成层。
+   ⚠️ 不要再给 .lp-hero-visual 加 perspective：.lp-phone 自己的 transform 里已经有
+   perspective(1000px)，外层再来一层会形成双重透视，转台会歪得很难看。 */
+@media (hover: none) {
+  /* 手机端首屏高度占比大，极光多飘一点才看得出"页面在动" */
+  html.lp-fx .lp-aurora::before,
+  html.lp-fx .lp-aurora::after {
+    translate: 0 calc(var(--lp-py, 0px) * 1.35);
+  }
+  /* 滚动驱动的小角度转台：只给回正加过渡，避免滚动时跟手变钝 */
+  html.lp-fx .lp-phone {
+    transition: transform 0.15s linear;
+  }
+}
+
+/* 指针跟随的柔光：与卡片聚光同一套做法 —— 只读 CSS 变量，不在 JS 里逐帧算渐变。
+   首屏的极光是"静态的氛围"，这一层是"活的"，两者叠加但不抢戏（--lp-spot 本身很淡）。 */
+.lp-hero-glow {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s var(--lp-ease);
+  background: radial-gradient(
+    440px circle at var(--hx, 50%) var(--hy, 40%),
+    var(--lp-spot),
+    transparent 62%
+  );
+}
+@media (hover: hover) and (pointer: fine) {
+  html.lp-fx .lp-hero:hover .lp-hero-glow {
+    opacity: 1;
+  }
+}
+html.lp-no-fx .lp-hero-glow {
+  display: none;
+}
+
+/* ================= 滚动显隐（reveal） =================
+   ⚠️ 用 `translate` / `scale` / `rotate` 这几个**独立变换属性**，而不是 `transform`：
+   卡片 hover 自己要用 transform: translateY(-2px)，两者若都写 transform 会互相覆盖
+   （reveal 的选择器特异度更高，会把 hover 效果彻底压死）。
+   独立属性彼此叠加、且与 transform 叠加，互不干扰。
+   只动 opacity / 位移 / 缩放 / 旋转，不动 height/margin —— 否则产生 CLS。 */
+html.lp-fx .lp-reveal {
+  opacity: 0;
+  translate: 0 14px;
+  transition: opacity var(--lp-dur) var(--lp-ease), translate var(--lp-dur) var(--lp-ease);
+  transition-delay: var(--lp-delay, 0ms);
+}
+/* --- 方向变体：只换位移方向，不新增过渡属性（translate 上面已登记） ---
+   左右交替用于并排的两张卡片：一左一右滑入，比"两张一起往上冒"更有层次。 */
+html.lp-fx .lp-reveal[data-fx='up'] {
+  translate: 0 24px;
+}
+html.lp-fx .lp-reveal[data-fx='left'] {
+  translate: -30px 0;
+}
+html.lp-fx .lp-reveal[data-fx='right'] {
+  translate: 30px 0;
+}
+/* --- 缩放变体：额外登记 scale 过渡 --- */
+html.lp-fx .lp-reveal[data-fx='zoom'] {
+  translate: 0 16px;
+  scale: 0.95;
+  transition: opacity var(--lp-dur) var(--lp-ease), translate var(--lp-dur) var(--lp-ease),
+    scale var(--lp-dur) var(--lp-ease);
+}
+/* --- 3D 翻入变体：卡片像从桌面立起来。
+       ⚠️ 必须由父级提供 perspective（见 .lp-cards），否则 rotateX 只会被压成"上下变扁"。 --- */
+html.lp-fx .lp-reveal[data-fx='tilt'] {
+  translate: 0 28px;
+  rotate: x 9deg;
+  transform-origin: center bottom;
+  transition: opacity var(--lp-dur) var(--lp-ease), translate var(--lp-dur) var(--lp-ease),
+    rotate var(--lp-dur) var(--lp-ease);
+}
+html.lp-fx .lp-reveal.is-in {
+  opacity: 1;
+  translate: 0 0;
+}
+html.lp-fx .lp-reveal[data-fx='zoom'].is-in {
+  scale: 1;
+}
+html.lp-fx .lp-reveal[data-fx='tilt'].is-in {
+  rotate: x 0deg;
+}
+
+/* ================= 布局容器 ================= */
+.lp-wrap {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 0 22px;
+}
+
+/* ================= 应用内打开提示条 ================= */
+.lp-inapp {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  background: var(--lp-gold-soft);
+  color: var(--lp-text);
+  border-bottom: 1px solid var(--lp-gold);
+}
+.lp-inapp:not([hidden]) {
+  display: flex;
+}
+.lp-inapp a {
+  font-weight: 600;
+}
+
+/* ================= 按钮 ================= */
+.lp-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 13px 24px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.16s, border-color 0.16s, transform 0.16s;
+}
+.lp-btn:hover {
+  text-decoration: none;
+}
+.lp-btn:active {
+  transform: scale(0.98);
+}
+.lp-btn-sm {
+  padding: 9px 17px;
+  font-size: 14px;
+}
+.lp-btn-primary {
+  background: var(--lp-accent);
+  color: var(--lp-accent-ink);
+}
+.lp-btn-primary:hover {
+  background: var(--lp-accent-2);
+}
+.lp-btn-ghost {
+  background: transparent;
+  color: var(--lp-text);
+  border-color: var(--lp-border-strong);
+}
+.lp-btn-ghost:hover {
+  border-color: var(--lp-accent-line);
+  color: var(--lp-accent);
+}
+
+/* 主按钮扫光：hover 时一道斜向高光掠过。
+   ⚠️ 用 transform 位移而不是 left —— 后者会触发每一帧的布局。 */
+html.lp-fx .lp-btn-primary {
+  position: relative;
+  overflow: hidden;
+}
+html.lp-fx .lp-btn-primary::after {
+  content: '';
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 42%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--lp-sheen), transparent);
+  transform: translateX(-160%) skewX(-18deg);
+  transition: transform 0.62s var(--lp-ease);
+}
+html.lp-fx .lp-btn-primary:hover::after {
+  transform: translateX(300%) skewX(-18deg);
+}
+
+/* ================= 导航 ================= */
+.lp-nav {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: var(--lp-nav);
+  backdrop-filter: blur(16px) saturate(1.4);
+  border-bottom: 1px solid var(--lp-border);
+  transition: background var(--lp-dur-fast) var(--lp-ease),
+    border-color var(--lp-dur-fast) var(--lp-ease);
+}
+/* 滚过首屏后加深底色、换更明显的分隔线。
+   刻意**不改高度**：吸顶元素仍在文档流里，改高度会让下方内容整体位移。 */
+.lp-nav.is-scrolled {
+  background: var(--lp-nav-solid);
+  border-bottom-color: var(--lp-border-strong);
+}
+html.lp-nav-open .lp-nav {
+  background: var(--lp-nav-solid);
+}
+.lp-nav-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  height: 62px;
+}
+.lp-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--lp-text);
+  flex: none;
+}
+.lp-brand:hover {
+  text-decoration: none;
+}
+/* 品牌图标：hover 时轻轻歪一下，给"可点回首页"一点可感知的反馈。
+   只用 transform，不影响布局；reduced-motion 下由文件末尾统一关掉。 */
+.lp-brand img {
+  transition: transform 0.5s var(--lp-ease);
+}
+.lp-brand:hover img {
+  transform: rotate(-8deg) scale(1.08);
+}
+.lp-nav-links {
+  display: flex;
+  gap: 24px;
+  flex: 1;
+}
+.lp-nav-links a {
+  position: relative;
+  color: var(--lp-text-2);
+  font-size: 14.5px;
+  text-decoration: none;
+  transition: color var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-nav-links a:hover {
+  color: var(--lp-text);
+}
+.lp-nav-links a::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -7px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--lp-accent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-nav-links a:hover::after,
+.lp-nav-links a.is-active::after {
+  transform: scaleX(1);
+}
+.lp-nav-links a.is-active {
+  color: var(--lp-text);
+}
+.lp-nav-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.lp-theme {
+  height: 34px;
+  padding: 0 13px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--lp-text-2);
+  background: transparent;
+  border: 1px solid var(--lp-border-strong);
+  cursor: pointer;
+  transition: color var(--lp-dur-fast), border-color var(--lp-dur-fast);
+}
+.lp-theme:hover {
+  color: var(--lp-text);
+  border-color: var(--lp-accent-line);
+}
+
+/* 汉堡按钮：只在窄屏出现 */
+.lp-menu-btn {
+  display: none;
+  align-items: center;
+  gap: 7px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 13.5px;
+  color: var(--lp-text-2);
+  background: transparent;
+  border: 1px solid var(--lp-border-strong);
+  cursor: pointer;
+}
+.lp-menu-btn:hover {
+  color: var(--lp-text);
+  border-color: var(--lp-accent-line);
+}
+.lp-menu-ico,
+.lp-menu-ico::before,
+.lp-menu-ico::after {
+  display: block;
+  width: 14px;
+  height: 1.5px;
+  border-radius: 2px;
+  background: currentColor;
+  transition: transform var(--lp-dur-fast) var(--lp-ease), opacity var(--lp-dur-fast);
+}
+.lp-menu-ico {
+  position: relative;
+}
+.lp-menu-ico::before,
+.lp-menu-ico::after {
+  content: '';
+  position: absolute;
+  left: 0;
+}
+.lp-menu-ico::before {
+  top: -5px;
+}
+.lp-menu-ico::after {
+  top: 5px;
+}
+html.lp-nav-open .lp-menu-ico {
+  background: transparent;
+}
+html.lp-nav-open .lp-menu-ico::before {
+  transform: translateY(5px) rotate(45deg);
+}
+html.lp-nav-open .lp-menu-ico::after {
+  transform: translateY(-5px) rotate(-45deg);
+}
+
+/* 阅读进度条：贴在导航下沿，用 scaleX 驱动（不触发布局） */
+.lp-nav-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  transform: scaleX(0);
+  transform-origin: left center;
+  background: linear-gradient(90deg, var(--lp-accent), var(--lp-accent-2));
+}
+html.lp-no-fx .lp-nav-progress {
+  display: none;
+}
+
+/* ================= 主视觉 ================= */
+.lp-hero {
+  position: relative;
+  padding: 68px 0 78px;
+}
+.lp-hero-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 54px;
+  align-items: center;
+}
+.lp-eyebrow {
+  display: inline-block;
+  padding: 5px 12px;
+  margin-bottom: 18px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--lp-accent);
+  background: var(--lp-accent-soft);
+  border: 1px solid var(--lp-accent-line);
+}
+.lp-h1 {
+  margin: 0 0 16px;
+  /* 流体字号：一套代码从手机到大屏都成立，不写死 px */
+  font-size: clamp(2rem, 4.6vw, 3.5rem);
+  font-weight: 800;
+}
+/* 渐变文字只给标题里的 <em>（"全管住"三个字），不要整句。
+   ⚠️ 必须包在 @supports 里：一旦 background-clip:text 不被支持而 color 又是
+   transparent，文字会**直接消失**。兜底就是保持普通的不透明前景色。 */
+@supports (-webkit-background-clip: text) or (background-clip: text) {
+  html:not(.lp-no-fx) .lp-h1 em {
+    font-style: normal;
+    background-image: linear-gradient(96deg, var(--lp-accent), var(--lp-accent-2) 62%, var(--lp-gold));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+}
+/* 高对比模式下渐变文字不可读，退回普通文字 */
+@media (forced-colors: active) {
+  .lp-h1 em {
+    background-image: none;
+    color: inherit;
+    -webkit-text-fill-color: inherit;
+  }
+}
+/* 标题里的渐变缓慢流动：把渐变拉宽到 2.2 倍再平移背景位置，等于让高光从字面上慢慢扫过。
+   刻意做得慢（7s 一个来回）—— 快了就从"质感"变成"廉价跑马灯"。 */
+@media (prefers-reduced-motion: no-preference) {
+  html.lp-fx .lp-h1 em {
+    background-size: 220% 100%;
+    background-position: 0% 50%;
+    animation: lp-h1-sheen 7s var(--lp-ease) infinite alternate;
+  }
+}
+@keyframes lp-h1-sheen {
+  from {
+    background-position: 0% 50%;
+  }
+  to {
+    background-position: 100% 50%;
+  }
+}
+.lp-lead {
+  margin-bottom: 28px !important;
+  max-width: 32em;
+  font-size: clamp(15px, 1.4vw, 17px);
+  line-height: 1.75;
+  color: var(--lp-text-2);
+}
+.lp-cta-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.lp-center {
+  justify-content: center;
+}
+.lp-trust {
+  display: flex;
+  gap: 10px 20px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--lp-text-3);
+}
+.lp-trust li {
+  position: relative;
+  padding-left: 15px;
+}
+.lp-trust li::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 7px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--lp-accent);
+}
+
+/* 主视觉右侧：手机截图 + 浮动状态卡。
+   外层收缩到手机宽度，浮动卡才能用负偏移贴到手机边缘。 */
+.lp-hero-visual {
+  position: relative;
+  width: min(292px, 100%);
+  margin: 0 0 0 auto;
+}
+/* 应用界面截图外框。
+   截图里已经包含应用自己的排版，所以这里只做"设备感"：圆角 + 细边框 + 阴影。
+   刻意不加内边距 —— 加了相当于在截图外面再套一圈边框。 */
+.lp-phone {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  margin: 0;
+  border-radius: 30px;
+  overflow: hidden;
+  background: var(--lp-bg-2);
+  border: 1px solid var(--lp-border-strong);
+  box-shadow: var(--lp-shadow);
+}
+.lp-phone img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+/* 鼠标跟随的 3D 倾斜。
+   ⚠️ 这里给 .lp-phone 加了常驻 transform —— 它会成为 position:fixed 的包含块。
+   所以 .lp-phone 内部**不能**再放任何 fixed 浮层（二维码放大层因此挂在 body 上）。 */
+html.lp-fx .lp-phone {
+  transform: perspective(1000px) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+}
+/* 移动中不要过渡（否则跟手感很差），只有回正时才加过渡 */
+html.lp-fx .lp-phone.is-reset {
+  transition: transform 0.5s var(--lp-ease);
+}
+
+/* 浮动状态卡：呼应参考站在主视觉周围放"集成图标"的做法。
+   内容是截图里已有的信息，纯装饰 → aria-hidden。 */
+.lp-chip {
+  position: absolute;
+  z-index: 2;
+  padding: 8px 13px;
+  border-radius: 999px;
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--lp-text);
+  background: var(--lp-card-glass);
+  border: 1px solid var(--lp-border-strong);
+  box-shadow: var(--lp-shadow);
+  backdrop-filter: blur(8px);
+}
+.lp-chip-a {
+  top: 13%;
+  left: -20px;
+}
+.lp-chip-b {
+  bottom: 15%;
+  right: -26px;
+}
+html.lp-no-fx .lp-chip {
+  display: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html.lp-fx .lp-chip {
+    animation: lp-float 5.5s var(--lp-ease) infinite alternate;
+  }
+  html.lp-fx .lp-chip-b {
+    animation-duration: 7s;
+    animation-delay: -2.4s;
+  }
+}
+@keyframes lp-float {
+  from {
+    translate: 0 -5px;
+  }
+  to {
+    translate: 0 5px;
+  }
+}
+
+/* ================= 关键词跑马灯 =================
+   默认（无脚本 / 关闭动效）是"居中换行"的静态标签云 —— 内容可读、可选中、可被读屏念到。
+   只有 landing.ts 在 lp-fx 下把轨道包成两组并克隆一份、挂上 .is-loop 之后，才切成横向无缝滚动。 */
+.lp-marquee {
+  position: relative;
+  overflow: hidden;
+  padding: 15px 0;
+  background: var(--lp-bg-2);
+  border-top: 1px solid var(--lp-border);
+}
+.lp-marquee-track {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px 14px;
+  padding: 0 22px;
+}
+.lp-marquee-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 14px;
+  border-radius: 999px;
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--lp-text-2);
+  background: var(--lp-bg-3);
+  border: 1px solid var(--lp-border);
+}
+.lp-marquee-item::before {
+  content: '';
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lp-accent);
+}
+/* 无缝循环的三条约定，缺一不可：
+   ① 轨道宽度 max-content 且不换行 —— 两份副本必须真的并排在同一行里；
+   ② 每份副本自己带 gap 与等值的 padding-right —— 副本之间的间距才和副本内部一致；
+   ③ 位移 -50% —— 正好等于"一份副本的宽度"，于是接缝处看不出跳变。
+   若把 gap 留在轨道上、靠 -50% 去凑，接缝会比其它间距少半格，滚动时能看出一次"顿挫"。 */
+html.lp-fx .lp-marquee.is-loop .lp-marquee-track {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 0;
+  width: max-content;
+  padding: 0;
+  animation: lp-marquee 36s linear infinite;
+}
+html.lp-fx .lp-marquee.is-loop .lp-marquee-group {
+  display: flex;
+  gap: 14px;
+  padding-right: 14px;
+}
+/* 悬停暂停：想看清某个词时不用跟它赛跑 */
+html.lp-fx .lp-marquee.is-loop:hover .lp-marquee-track {
+  animation-play-state: paused;
+}
+/* 两侧渐隐，避免词从硬边缘"冒出来" */
+html.lp-fx .lp-marquee.is-loop {
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+}
+@keyframes lp-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ================= 界面预览 ================= */
+.lp-shots {
+  gap: 20px;
+}
+.lp-shot {
+  margin: 0;
+  padding: 16px;
+  border-radius: 18px;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-border);
+  transition: border-color var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-shot:hover {
+  border-color: var(--lp-border-strong);
+}
+.lp-shot img {
+  display: block;
+  width: 100%;
+  max-width: 280px;
+  height: auto;
+  margin: 0 auto;
+  border-radius: 18px;
+  border: 1px solid var(--lp-border-strong);
+}
+.lp-shot figcaption {
+  margin-top: 14px;
+  font-size: 13.4px;
+  line-height: 1.7;
+  color: var(--lp-text-2);
+}
+.lp-shot figcaption b {
+  display: block;
+  margin-bottom: 3px;
+  font-size: 14.6px;
+  color: var(--lp-text);
+}
+/* 截图本身的"卷帘"揭示：卡片先淡入，图片随后从下往上刷出来。
+   ⚠️ 只加在 img 上而不是 figcaption —— 说明文字必须和卡片一起出现，不然会读得断断续续。 */
+html.lp-fx .lp-shot img {
+  clip-path: inset(0 0 100% 0);
+  transition: clip-path 0.85s var(--lp-ease);
+  transition-delay: calc(var(--lp-delay, 0ms) + 90ms);
+}
+html.lp-fx .lp-shot.is-in img {
+  clip-path: inset(0 0 0 0);
+}
+
+/* 光标聚光：只有能 hover 的设备才启用（触屏上 mouse 事件语义不对）。
+   用 ::before + opacity 切换，避免每帧重绘整个卡片。 */
+html.lp-fx .lp-card,
+html.lp-fx .lp-shot {
+  position: relative;
+}
+html.lp-fx .lp-card::before,
+html.lp-fx .lp-shot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--lp-dur-fast) var(--lp-ease);
+  background: radial-gradient(
+    340px circle at var(--mx, 50%) var(--my, 0%),
+    var(--lp-spot),
+    transparent 62%
+  );
+}
+@media (hover: hover) and (pointer: fine) {
+  html.lp-fx .lp-card:hover::before,
+  html.lp-fx .lp-shot:hover::before {
+    opacity: 1;
+  }
+}
+/* 卡片内容压在聚光层之上。
+   第三行是 2026-10-17 加 WebP 后补的：截图外面多包了一层 <picture style="display:contents">，
+   它不生成盒子，于是上面的 `> *` 命中的是 picture（position/z-index 无处生效），
+   里面的 img 反而拿不到 z-index —— 结果 hover 聚光层会盖在截图上。
+   直接点名 picture 里的 img 即可。 */
+html.lp-fx .lp-card > *,
+html.lp-fx .lp-shot > *,
+html.lp-fx .lp-shot picture > img {
+  position: relative;
+  z-index: 1;
+}
+
+/* ================= 二维码（点击放大） ================= */
+.lp-qr-btn {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.lp-qr-btn img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+}
+.lp-qr-btn:hover img {
+  outline: 2px solid var(--lp-accent-line);
+  outline-offset: -2px;
+}
+
+/* 放大层：挂到 document.body 上（不是嵌在卡片里），z-index 必须高于吸顶导航的 60
+   与噪点层的 5。背景用接近纯黑：二维码要的是对比度，不是美观的底色。 */
+.lp-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.88);
+  cursor: zoom-out;
+}
+.lp-lightbox-img {
+  width: auto;
+  height: auto;
+  max-width: min(100%, 420px);
+  max-height: 76vh;
+  border-radius: 16px;
+  background: #fff;
+}
+.lp-lightbox-tip {
+  text-align: center;
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+/* ================= 打赏 ================= */
+.lp-tip {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 28px;
+  align-items: center;
+}
+.lp-tip-copy p {
+  font-size: 14.5px;
+  line-height: 1.78;
+  color: var(--lp-text-2);
+}
+.lp-tip-copy p + p {
+  margin-top: 10px !important;
+}
+@media (max-width: 760px) {
+  .lp-tip {
+    grid-template-columns: 1fr;
+    gap: 18px;
+    justify-items: center;
+    text-align: center;
+  }
+}
+
+/* ================= 通用区块 ================= */
+.lp-sec {
+  position: relative;
+  padding: 74px 0;
+}
+.lp-sec > .lp-wrap {
+  position: relative;
+  z-index: 1;
+}
+.lp-alt {
+  background: var(--lp-bg-2);
+  border-top: 1px solid var(--lp-border);
+  border-bottom: 1px solid var(--lp-border);
+}
+.lp-sec-head {
+  max-width: 44em;
+  margin-bottom: 38px;
+}
+.lp-h2 {
+  margin: 0 0 10px;
+  font-size: clamp(1.55rem, 2.7vw, 2.15rem);
+  font-weight: 800;
+}
+/* 区块标题的"擦除式"入场：从下往上把标题擦出来，比整段淡入更有方向感。
+   ⚠️ 终点 inset 用负值把裁剪框撑到盒外 —— 否则中文的降部（如"折、理"）与斜体字缘会被切掉。
+   ⚠️ 只作用于 .lp-sec-head 内的标题；结尾区（.lp-end h2）不在其中，保持整段淡入。 */
+html.lp-fx .lp-sec-head .lp-h2 {
+  clip-path: inset(0 0 105% 0);
+  transition: clip-path 0.72s var(--lp-ease);
+  transition-delay: var(--lp-delay, 0ms);
+}
+html.lp-fx .lp-sec-head.is-in .lp-h2 {
+  clip-path: inset(-14% -6% -22% -6%);
+}
+.lp-sec-sub {
+  color: var(--lp-text-2);
+  font-size: 15.5px;
+  line-height: 1.72;
+}
+
+/* ================= 数据条 =================
+   用 1px 的网格缝（容器底色透出来）做分隔，比给每格加边框少一半绘制量，
+   也让四格在换行时依然是一条连续的带子。 */
+.lp-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  margin-bottom: 30px;
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--lp-border);
+  border: 1px solid var(--lp-border);
+}
+.lp-stat {
+  padding: 18px 20px;
+  background: var(--lp-card);
+}
+.lp-stat-n {
+  display: inline-block;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--lp-accent);
+}
+.lp-stat-u {
+  margin-left: 3px;
+  font-size: 13px;
+  color: var(--lp-text-3);
+}
+.lp-stat-l {
+  display: block;
+  margin-top: 8px;
+  font-size: 12.6px;
+  line-height: 1.55;
+  color: var(--lp-text-2);
+}
+
+/* ================= 卡片 ================= */
+.lp-cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+/* data-fx="tilt" 的 3D 翻入需要父级给透视，否则 rotateX 只是"上下压扁"。
+   只在 lp-fx 下加：perspective 会给子元素建包含块，没有动效时没必要引入这个副作用。 */
+html.lp-fx .lp-cards {
+  perspective: 1100px;
+}
+.lp-card {
+  padding: 24px 22px;
+  border-radius: 16px;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-border);
+  transition: border-color var(--lp-dur-fast) var(--lp-ease),
+    transform var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-card:hover {
+  border-color: var(--lp-border-strong);
+  transform: translateY(-2px);
+}
+/* 玻璃卡：半透明底 + 轻模糊。模糊只给这三张，不要全站铺开（低端机滚动会掉帧）。
+   模糊要有东西可"模糊"才看得出来，所以 #features 区块另有一层 .lp-glow-soft。 */
+html.lp-fx .lp-card {
+  background: var(--lp-card-glass);
+  backdrop-filter: blur(6px);
+}
+/* 顶部一道细高光，比整圈渐变描边更好实现、也不容易在旧浏览器上翻车 */
+html.lp-fx .lp-card::after {
+  content: '';
+  position: absolute;
+  left: 14%;
+  right: 14%;
+  top: -1px;
+  height: 1px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--lp-dur-fast) var(--lp-ease);
+  background: linear-gradient(90deg, transparent, var(--lp-accent-line), transparent);
+}
+html.lp-fx .lp-card:hover::after {
+  opacity: 1;
+}
+.lp-ico {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 15px;
+  border-radius: 12px;
+  color: var(--lp-accent);
+  background: var(--lp-accent-soft);
+  border: 1px solid var(--lp-accent-line);
+  transition: transform var(--lp-dur-fast) var(--lp-ease),
+    border-color var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-card:hover .lp-ico {
+  transform: translateY(-2px);
+  border-color: var(--lp-accent);
+}
+.lp-card h3 {
+  margin: 0 0 8px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.lp-card p {
+  color: var(--lp-text-2);
+  font-size: 14px;
+  line-height: 1.72;
+}
+
+/* ================= 应用矩阵 =================
+   三栏分组（学习 / 校园服务 / 工具），每组是一个"带标题的列表卡片"。
+   之所以不用 3 列等宽磁贴网格：16 个应用的名字长短差别很大（「成绩单下载」vs「CITEL」），
+   等宽磁贴会在中英文之间留下大量空白；分组列表让每行自己占满宽度，读起来更整齐。 */
+.lp-apps {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.lp-apps > * {
+  min-width: 0;
+}
+.lp-app-group {
+  padding: 18px 16px 12px;
+  border-radius: 16px;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-border);
+  transition: border-color var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-app-group:hover {
+  border-color: var(--lp-border-strong);
+}
+.lp-app-cat {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--lp-text-2);
+}
+/* 分类色点：色相取自应用内的三类强调色，但换成本文件的 --lp-cat-* 令牌
+   （首页不复用 styles.css 的 --app-c-*，理由见文件头"隔离原则"）。 */
+.lp-app-dot {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--lp-cat);
+}
+.lp-app-count {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--lp-text-3);
+}
+/* 分类色映射：一处定义，色点与图标块共用。
+   ⚠️ 写成 `[data-cat]` 而不是 `.lp-app[data-cat]`，是为了让 .lp-app-dot 也能命中
+   —— 色点在 <h3> 里，不在 .lp-app 里。 */
+[data-cat='study'] {
+  --lp-cat: var(--lp-cat-study);
+}
+[data-cat='campus'] {
+  --lp-cat: var(--lp-cat-campus);
+}
+[data-cat='tool'] {
+  --lp-cat: var(--lp-cat-tool);
+}
+.lp-app-list {
+  display: grid;
+  gap: 2px;
+}
+.lp-app {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 9px;
+  border-radius: 10px;
+  font-size: 14px;
+  color: var(--lp-text);
+  transition: background var(--lp-dur-fast) var(--lp-ease);
+}
+/* 只换底色、不做位移：触屏上点一下会让 :hover 粘住（iOS Safari 尤其明显），
+   而这条规则没有像 .lp-card 那样写"触屏中和"的分支 —— 与其补一条，
+   不如从一开始就不用位移。行本来就窄，2px 横移也几乎看不出来。 */
+html.lp-fx .lp-app:hover {
+  background: var(--lp-bg-3);
+}
+.lp-app-ico {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  color: var(--lp-cat);
+  /* ⚠️ color-mix 在 Chromium 111 / Safari 16.2 之前不支持；不支持时整条声明失效 →
+     图标底变成全透明，深色下彩色图标直接压在卡片底色上，层次全丢。
+     所以先给一档纯色兜底（复用强调色的极淡混合），再用 @supports 换成"按分类色混合"。
+     兜底只是颜色不准，不会掉层次 —— 这是有意的降级方向。 */
+  background: var(--lp-accent-soft);
+  border: 1px solid var(--lp-accent-line);
+}
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  .lp-app-ico {
+    background: color-mix(in srgb, var(--lp-cat) 14%, transparent);
+    border-color: color-mix(in srgb, var(--lp-cat) 36%, transparent);
+  }
+}
+.lp-app-name {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lp-app-tag {
+  flex: none;
+  margin-left: auto;
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--lp-gold-ink);
+  background: var(--lp-gold-soft);
+  /* 兜底同 .lp-app-ico：不支持 color-mix 时退回中性描边，只是少一点金色调，不会掉层次 */
+  border: 1px solid var(--lp-border-strong);
+}
+@supports (background: color-mix(in srgb, red 50%, transparent)) {
+  .lp-app-tag {
+    border-color: color-mix(in srgb, var(--lp-gold) 34%, transparent);
+  }
+}
+.lp-app-tag-inline {
+  display: inline-block;
+  margin: 0 2px;
+  vertical-align: baseline;
+  /* 正文里内嵌的小标签不参与"靠右排"：margin-left:auto 只在 flex 行里才有意义 */
+}
+.lp-apps-note {
+  margin-top: 16px;
+  font-size: 13.4px;
+  line-height: 1.75;
+  color: var(--lp-text-2);
+}
+.lp-apps-note a {
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+/* ================= 桌面小部件 =================
+   右侧的"桌面"是一块纯 CSS 示意（不是截图）：截图会和壁纸、图标包、状态栏版本绑死，
+   换个系统主题就失真；示意版永远准确，且深浅色自动跟随。 */
+.lp-widgets {
+  display: grid;
+  grid-template-columns: 1.02fr 0.98fr;
+  gap: 20px;
+  align-items: start;
+}
+.lp-widgets > * {
+  min-width: 0;
+}
+.lp-widget-list {
+  /* 复用 .lp-safe 的排版（b 块级标题 + 正文），只补一点行距让四条读起来不挤 */
+  font-size: 14px;
+  line-height: 1.72;
+}
+.lp-widget-visual {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 20px;
+  /* 模拟桌面壁纸：一层极淡的斜向渐变 + 强调色晕，深色下才看得出"这是桌面不是页面" */
+  background-image: radial-gradient(120% 90% at 18% 0%, var(--lp-glow-1), transparent 62%),
+    radial-gradient(90% 80% at 100% 100%, var(--lp-glow-2), transparent 58%),
+    linear-gradient(160deg, var(--lp-bg-3), var(--lp-bg-2));
+  border: 1px solid var(--lp-border);
+}
+.lp-wcard {
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-border);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+}
+.lp-wcard-big {
+  grid-column: 1 / -1;
+}
+.lp-wcard-mid {
+  grid-column: 1;
+}
+.lp-wcard-small {
+  grid-column: 2;
+}
+.lp-wcard-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.lp-wcard-week {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--lp-text-2);
+}
+.lp-wcard-sync {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--lp-accent);
+}
+.lp-wcard-rows {
+  display: grid;
+  gap: 6px;
+}
+.lp-wrow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding-left: 8px;
+  /* 左侧色条就是这个课程的颜色：真机里颜色由快照带过来，这里用固定的三种色相近似 */
+  border-left: 2px solid var(--lp-tone);
+  border-radius: 0 6px 6px 0;
+}
+.lp-wrow[data-tone='a'] {
+  --lp-tone: var(--lp-accent);
+}
+.lp-wrow[data-tone='b'] {
+  --lp-tone: var(--lp-cat-study);
+}
+.lp-wrow[data-tone='c'] {
+  --lp-tone: var(--lp-cat-tool);
+}
+.lp-wrow-time {
+  flex: none;
+  width: 34px;
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  color: var(--lp-text-3);
+}
+.lp-wrow-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.lp-wrow-main b {
+  overflow: hidden;
+  font-size: 12.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lp-wrow-main i {
+  overflow: hidden;
+  font-size: 10.5px;
+  font-style: normal;
+  color: var(--lp-text-3);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.lp-wcard-foot {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  padding-top: 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--lp-text-3);
+  border-top: 1px solid var(--lp-border);
+}
+.lp-wcard-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--lp-gold);
+}
+.lp-wcard-next {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.lp-wcard-loc {
+  margin-top: 3px;
+  font-size: 10.5px;
+  color: var(--lp-text-3);
+}
+
+/* ================= 三步 ================= */
+.lp-steps {
+  position: relative;
+  display: grid;
+  gap: 12px;
+}
+/* 连接线：只在卡片之间的 12px 缝隙里露出来（卡片 z-index 更高、且是不透明底），
+   于是视觉上就是"把 01 / 02 / 03 串起来"的时间轴。 */
+.lp-steps::before {
+  content: '';
+  position: absolute;
+  left: 39px;
+  top: 46px;
+  bottom: 46px;
+  width: 2px;
+  z-index: 0;
+  background: linear-gradient(180deg, var(--lp-accent-line), var(--lp-border));
+  transform: scaleY(0);
+  transform-origin: top center;
+  transition: transform 1.1s var(--lp-ease);
+}
+html.lp-fx .lp-steps.is-in::before {
+  transform: scaleY(1);
+}
+.lp-step {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 20px;
+  align-items: start;
+  padding: 22px 24px;
+  border-radius: 16px;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-border);
+  transition: border-color var(--lp-dur-fast) var(--lp-ease);
+}
+/* 左侧进度条：每一步进入视口时自己"点亮" */
+.lp-step::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  border-radius: 16px 0 0 16px;
+  background: linear-gradient(180deg, var(--lp-accent), var(--lp-accent-line));
+  transform: scaleY(0);
+  transform-origin: top center;
+  transition: transform 0.6s var(--lp-ease);
+}
+html.lp-fx .lp-step.is-in::before {
+  transform: scaleY(1);
+}
+html.lp-fx .lp-step.is-in {
+  border-color: var(--lp-border-strong);
+}
+.lp-step-n {
+  font-size: 25px;
+  font-weight: 700;
+  color: var(--lp-text-3);
+  transition: color var(--lp-dur) var(--lp-ease);
+}
+html.lp-fx .lp-step.is-in .lp-step-n {
+  color: var(--lp-accent);
+}
+.lp-step h3 {
+  margin: 0 0 5px;
+  font-size: 16.5px;
+  font-weight: 700;
+}
+.lp-step p {
+  color: var(--lp-text-2);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+/* ================= 下载 / 联系 双栏 ================= */
+.lp-dl {
+  display: grid;
+  grid-template-columns: 1.04fr 0.96fr;
+  gap: 18px;
+  align-items: start;
+}
+.lp-panel {
+  padding: 26px 24px;
+  border-radius: 18px;
+  background: var(--lp-card);
+  border: 1px solid var(--lp-border);
+  transition: border-color var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-panel:hover {
+  border-color: var(--lp-border-strong);
+}
+/* grid / flex 子项默认 `min-width: auto`（= 不得小于自身内容最小宽度），
+   只要里面有一个不可断的长字符串（长长的 URL、哈希值、长英文单词），
+   整条轨道就会被撑宽，而 html 的 overflow-x:hidden 会把它裁掉 ——
+   表现为"右侧莫名其妙被切掉"，且极难靠肉眼看出来是谁干的。
+   这里统一解除下限，作为横向溢出的通用防线。 */
+.lp-dl > *,
+.lp-grid2 > *,
+.lp-cards > * {
+  min-width: 0;
+}
+
+.lp-panel h3 {
+  margin: 0 0 4px;
+  font-size: 18.5px;
+  font-weight: 700;
+}
+.lp-panel-sub {
+  margin-bottom: 18px !important;
+  font-size: 13px;
+  color: var(--lp-text-3);
+}
+.lp-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  margin: 0 0 14px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--lp-border);
+}
+.lp-meta > div {
+  padding: 11px 14px;
+  background: var(--lp-bg-3);
+}
+.lp-meta dt {
+  margin-bottom: 2px;
+  font-size: 12px;
+  color: var(--lp-text-3);
+}
+.lp-meta dd {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+}
+.lp-hash {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 13px;
+  margin-bottom: 7px;
+  border-radius: 11px;
+  background: var(--lp-bg-3);
+  border: 1px solid var(--lp-border);
+}
+.lp-hash code {
+  flex: 1;
+  /* ⚠️ 这三行缺一不可，是移动端横向溢出的重点教训：
+     `overflow:hidden + text-overflow:ellipsis` 只截断**显示**，元素的最小内容宽度
+     仍然是那串 64 位十六进制值的完整宽度 —— 它会把外层的 grid 轨道一起撑宽。
+     实测：430px 视口下把 body 撑到 551px，整页右侧被裁掉（按钮、正文全被切）。
+     正解 = min-width:0 解除 flex 项的自动最小宽度 + word-break:break-all 允许在任意字符处换行。 */
+  min-width: 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--lp-text-2);
+  white-space: normal;
+  word-break: break-all;
+}
+.lp-copy {
+  flex: none;
+  padding: 5px 11px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--lp-text-2);
+  background: transparent;
+  border: 1px solid var(--lp-border-strong);
+  cursor: pointer;
+  transition: color var(--lp-dur-fast), border-color var(--lp-dur-fast),
+    transform var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-copy:hover {
+  color: var(--lp-accent);
+  border-color: var(--lp-accent-line);
+}
+.lp-copy.is-done {
+  color: var(--lp-accent);
+  border-color: var(--lp-accent);
+  transform: scale(1.04);
+}
+.lp-hint {
+  margin-bottom: 18px !important;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--lp-text-3);
+}
+.lp-dl-btn {
+  width: 100%;
+}
+.lp-log {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--lp-border);
+}
+.lp-log h4 {
+  margin: 0 0 9px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--lp-text-2);
+}
+.lp-log li {
+  position: relative;
+  padding-left: 14px;
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: var(--lp-text-2);
+}
+.lp-log li::before {
+  content: '';
+  position: absolute;
+  left: 2px;
+  top: 10px;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--lp-text-3);
+}
+.lp-safe {
+  display: grid;
+  gap: 12px;
+}
+.lp-safe li {
+  font-size: 13.4px;
+  line-height: 1.72;
+  color: var(--lp-text-2);
+}
+.lp-safe b {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--lp-text);
+  font-weight: 650;
+}
+.lp-safe a {
+  font-weight: 600;
+}
+.lp-cmd {
+  margin-top: 16px !important;
+  font-size: 12.5px;
+  color: var(--lp-text-3);
+}
+.lp-cmd code {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 7px 11px;
+  border-radius: 8px;
+  font-size: 12px;
+  color: var(--lp-text-2);
+  background: var(--lp-bg-3);
+  border: 1px solid var(--lp-border);
+}
+
+/* ================= 隐私 / 联系 两栏 ================= */
+.lp-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.lp-note {
+  padding: 19px 21px;
+  border-radius: 15px;
+  font-size: 13.8px;
+  line-height: 1.75;
+  color: var(--lp-text-2);
+  background: var(--lp-card);
+  border: 1px solid var(--lp-border);
+  transition: border-color var(--lp-dur-fast) var(--lp-ease);
+}
+/* 隐私区刻意保持安静：只给一条极淡的描边反馈，不做聚光/视差/位移 ——
+   这是"信任"区块，动效越多越像广告。 */
+.lp-note:hover {
+  border-color: var(--lp-accent-line);
+}
+.lp-note b {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 14.5px;
+  font-weight: 700;
+  color: var(--lp-text);
+}
+.lp-qr-row {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.lp-qr {
+  margin: 0;
+  /* 220px 而不是"差不多够看"的尺寸：二维码是要被摄像头扫屏幕的，
+     缩到 150px 以下时模块边长只剩 3~4px，扫描成功率会明显下降。 */
+  width: 220px;
+  max-width: 100%;
+  text-align: center;
+}
+.lp-qr figcaption {
+  margin-top: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--lp-text-3);
+}
+.lp-hint-mt {
+  margin-top: 14px !important;
+}
+
+/* ================= FAQ ================= */
+.lp-faq {
+  border: 1px solid var(--lp-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background: var(--lp-border);
+  display: grid;
+  gap: 1px;
+}
+.lp-faq details {
+  background: var(--lp-card);
+}
+.lp-faq summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  list-style: none;
+}
+.lp-faq summary::-webkit-details-marker {
+  display: none;
+}
+/* 展开图标：两块纯色渐变拼出 "+"，展开时把竖条拉平成横条 —— 视觉上就是 "−"。
+   为什么不用 content: '+' / '−' 换字符：换字符是**瞬变**的，无法过渡；
+   而 background-size 是可过渡属性，于是加减号能平滑地收起来，和答案的展开同步。
+   ⚠️ 尺寸参数写了两遍（width/height 与两个 background-size），改大小要一起改。 */
+.lp-faq summary::after {
+  content: '';
+  flex: none;
+  width: 13px;
+  height: 13px;
+  color: var(--lp-text-3);
+  background-image: linear-gradient(currentColor, currentColor),
+    linear-gradient(currentColor, currentColor);
+  background-repeat: no-repeat;
+  background-position: center, center;
+  background-size: 13px 1.6px, 1.6px 13px;
+  transition: background-size 0.34s var(--lp-ease), color 0.25s var(--lp-ease);
+}
+.lp-faq details[open] summary::after {
+  background-size: 13px 1.6px, 13px 1.6px;
+  color: var(--lp-accent);
+}
+.lp-faq-n {
+  flex: none;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--lp-text-3);
+}
+.lp-faq details[open] .lp-faq-n {
+  color: var(--lp-accent);
+}
+.lp-faq-q {
+  flex: 1;
+}
+/* 平滑展开：<details> 原生不支持高度过渡，所以由 landing.ts 在 .lp-faq-wrap 上
+   改 grid-template-rows（0fr ↔ 1fr）来实现。内层必须 overflow:hidden，
+   否则 0fr 塌不下去。脚本没跑时（无 JS / reduced-motion）走原生开关，不受影响。 */
+.lp-faq-wrap {
+  display: grid;
+  grid-template-rows: 1fr;
+}
+.lp-faq-wrap > * {
+  overflow: hidden;
+}
+html.lp-fx .lp-faq-wrap {
+  transition: grid-template-rows 0.3s var(--lp-ease);
+}
+.lp-faq-a {
+  padding: 0 20px 18px;
+  font-size: 14px;
+  line-height: 1.78;
+  color: var(--lp-text-2);
+}
+
+/* ================= 结尾 / 页脚 ================= */
+.lp-end {
+  position: relative;
+  padding: 78px 0;
+  text-align: center;
+}
+.lp-end > .lp-wrap {
+  position: relative;
+  z-index: 1;
+}
+.lp-end h2 {
+  margin: 0 0 12px;
+  font-size: clamp(1.6rem, 3vw, 2.3rem);
+  font-weight: 800;
+}
+.lp-end p {
+  margin: 0 auto 28px !important;
+  max-width: 30em;
+  color: var(--lp-text-2);
+}
+.lp-foot {
+  padding: 26px 0 40px;
+  border-top: 1px solid var(--lp-border);
+  font-size: 12.8px;
+  color: var(--lp-text-3);
+}
+.lp-foot-in {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.lp-foot-links {
+  display: flex;
+  gap: 16px;
+}
+.lp-foot a {
+  color: var(--lp-text-3);
+  transition: color var(--lp-dur-fast) var(--lp-ease);
+}
+.lp-foot a:hover {
+  color: var(--lp-accent);
+}
+/* 备案号行：比主行更淡更小，但必须**可见**（工信部要求展示，不能藏起来）。
+   margin-top 与主行拉开一点，避免和上面的链接挤成一片。 */
+.lp-foot-icp {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--lp-text-3);
+  opacity: 0.82;
+}
+.lp-foot-icp a {
+  color: inherit;
+}
+.lp-foot-icp a:hover {
+  color: var(--lp-accent);
+  opacity: 1;
+}
+
+/* ================= 回到顶部 =================
+   ⚠️ 默认用 opacity + visibility 藏起来，**不能**用 hidden 属性 ——
+   .lp-top 自己声明了 display，会盖掉 [hidden] 的 display:none，按钮反而一直可见。
+   visibility:hidden 同时把它移出 Tab 序列，不会留下一个"看不见但能聚焦"的控件。
+   ⚠️ 进度环用 stroke-dashoffset 驱动（--lp-top-p 由 landing.ts 写），只改描边不触发布局。 */
+.lp-top {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--lp-text-2);
+  background: var(--lp-card-glass);
+  border: 1px solid var(--lp-border-strong);
+  box-shadow: var(--lp-shadow);
+  backdrop-filter: blur(8px);
+  cursor: pointer;
+  opacity: 0;
+  visibility: hidden;
+  translate: 0 12px;
+  transition: opacity 0.3s var(--lp-ease), translate 0.3s var(--lp-ease),
+    visibility 0.3s, color 0.2s var(--lp-ease), border-color 0.2s var(--lp-ease);
+}
+.lp-top.is-on {
+  opacity: 1;
+  visibility: visible;
+  translate: 0 0;
+}
+.lp-top:hover {
+  color: var(--lp-accent);
+  border-color: var(--lp-accent-line);
+}
+.lp-top svg {
+  position: absolute;
+}
+.lp-top-ring {
+  width: 100%;
+  height: 100%;
+  /* 让进度从 12 点方向开始，而不是默认的 3 点方向 */
+  transform: rotate(-90deg);
+}
+.lp-top-track {
+  fill: none;
+  stroke: var(--lp-border-strong);
+  stroke-width: 2;
+  opacity: 0.55;
+}
+.lp-top-bar {
+  fill: none;
+  stroke: var(--lp-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  /* r = 19 → 周长 2πr ≈ 119.38。dashoffset 从满周长（全空）走到 0（全满），
+     于是"环的填充量"直接读作"已读进度"。 */
+  stroke-dasharray: 119.38;
+  stroke-dashoffset: calc(119.38 * var(--lp-top-p, 1));
+}
+.lp-top-arrow {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* ================= 区块指示点 =================
+   由 landing.ts 生成（纯增强：没有脚本就没有这一列）。
+   ⚠️ 位置用 calc(50% - 608px) 而不是固定 right —— 让它**恒定**贴在内容列（max-width 1120px）
+   外侧 16px 处，而不是贴视口右边。用固定 right 时，1024~1240px 这一段视口里内容列几乎铺满，
+   圆点会直接压在卡片正文上（实测 1024px 下重叠约 30px）。
+   ⚠️ 百分比 right 对 fixed 元素是相对**视口（不含滚动条）**解析的，与 .lp-wrap 的居中方式一致；
+   若换成 50vw 就会把滚动条宽度算进去，宽屏上会整体右偏十几像素。 */
+.lp-dots {
+  position: fixed;
+  top: 50%;
+  z-index: 55;
+  display: none;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 6px;
+  border-radius: 999px;
+  translate: 0 -50%;
+  background: var(--lp-card-glass);
+  border: 1px solid var(--lp-border);
+  backdrop-filter: blur(8px);
+}
+/* 需要的内容列外侧空间 = 16(间隙) + 32(列宽) = 48px，
+   而内容列每侧留白 = 50% - 560px，于是 right = 50% - 560 - 48 = 50% - 608px。
+   要让这个值 ≥ 12px，视口至少 1240px —— 更窄就干脆不显示。 */
+@media (min-width: 1240px) {
+  html.lp-fx .lp-dots {
+    display: flex;
+    right: calc(50% - 608px);
+  }
+}
+html.lp-no-fx .lp-dots {
+  display: none;
+}
+.lp-dot {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+}
+.lp-dot > span {
+  display: block;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--lp-text-3);
+  opacity: 0.55;
+  transition: width 0.3s var(--lp-ease), height 0.3s var(--lp-ease),
+    background 0.3s var(--lp-ease), opacity 0.3s var(--lp-ease);
+}
+.lp-dot:hover > span {
+  opacity: 1;
+  background: var(--lp-accent);
+}
+/* 当前区块：圆点拉成一小段胶囊，配合导航里的下划线一起指示"读到哪了" */
+.lp-dot.is-active > span {
+  width: 6px;
+  height: 16px;
+  opacity: 1;
+  background: var(--lp-accent);
+}
+
+/* ================= 响应式 ================= */
+@media (max-width: 1023px) {
+  .lp-hero-grid {
+    grid-template-columns: 1fr;
+    gap: 40px;
+  }
+  .lp-hero-visual {
+    margin: 0 auto;
+  }
+  .lp-cards {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lp-dl {
+    grid-template-columns: 1fr;
+  }
+  /* 三栏应用分组在 1023px 以下每栏只剩 ~300px，「校园服务」组里的长名字
+     （「成绩单下载」「课程平台作业」）开始被截断。降到两栏，第三组自然换行到下一排。 */
+  .lp-apps {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lp-apps > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  /* 小部件：右侧示意在窄一点的屏幕上会被压成"两块挤在一起"，
+     改成上下排 —— 文字在上、示意在下，阅读顺序反而更自然。 */
+  .lp-widgets {
+    grid-template-columns: 1fr;
+  }
+  .lp-widget-visual {
+    max-width: 460px;
+  }
+}
+
+/* 导航在 6 个条目下需要更紧的间距：760px 以上仍是横向排列，
+   但 24px 间距 + 14.5px 字号在 ~900px 处就会和右侧按钮挤在一起（实测「常见问题」会顶到「主题」）。 */
+@media (max-width: 980px) {
+  .lp-nav-links {
+    gap: 15px;
+  }
+  .lp-nav-links a {
+    font-size: 13.5px;
+  }
+}
+
+@media (max-width: 760px) {
+  /* 窄屏把横向导航换成汉堡下拉。
+     ⚠️ 面板用 position:absolute 相对 .lp-nav（sticky 即定位元素）铺满整宽；
+     .lp-nav-in 未定位，所以它会逃出 .lp-wrap 的 22px 内边距。 */
+  .lp-menu-btn {
+    display: inline-flex;
+  }
+  .lp-nav-links {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    flex-direction: column;
+    gap: 0;
+    padding: 4px 22px 12px;
+    /* ⚠️ 这里必须是不透明底：用半透明 + backdrop-filter 时，
+       背后的 hero 标题会透过面板（实测"课表、DDL、考试"会从菜单文字间渗出来），
+       菜单可读性明显下降。导航条本身可以用毛玻璃，展开面板不行。 */
+    background: var(--lp-bg);
+    border-bottom: 1px solid var(--lp-border-strong);
+    box-shadow: var(--lp-shadow);
+  }
+  html.lp-nav-open .lp-nav-links {
+    display: flex;
+  }
+  .lp-nav-links a {
+    padding: 13px 2px;
+    font-size: 15px;
+    border-bottom: 1px solid var(--lp-border);
+  }
+  .lp-nav-links a:last-child {
+    border-bottom: 0;
+  }
+  .lp-nav-links a::after {
+    display: none;
+  }
+
+  .lp-hero {
+    padding: 44px 0 58px;
+  }
+  .lp-sec {
+    padding: 56px 0;
+  }
+  .lp-cards,
+  .lp-grid2 {
+    grid-template-columns: 1fr;
+  }
+  /* 手机上应用分组也回到单列：两栏里每格只剩 ~150px，
+     「课程平台作业」这种 6 字名会被省略号截掉一半，还不如一行一个看得全。 */
+  .lp-apps {
+    grid-template-columns: 1fr;
+  }
+  .lp-apps > :nth-child(3) {
+    grid-column: auto;
+  }
+  .lp-step {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 19px 20px;
+  }
+  /* 单列后编号跑到文字上方，纵向连接线会穿过正文 → 隐藏 */
+  .lp-steps::before {
+    display: none;
+  }
+  .lp-meta {
+    grid-template-columns: 1fr;
+  }
+  /* 数据条在窄屏收成 2×2：四格并排时每格只剩 ~80px，数字与说明会挤成一团 */
+  .lp-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lp-stat {
+    padding: 15px 16px;
+  }
+  .lp-stat-n {
+    font-size: 26px;
+  }
+  .lp-marquee {
+    padding: 12px 0;
+  }
+  /* 浮动按钮在窄屏收小并贴边：430px 视口下 46px 的它正好压在正文右端（实测会盖住
+     「DDL 与考试」那张卡片的说明文字），缩到 40px + 退到 14px 就只压到内边距了。 */
+  .lp-top {
+    right: 14px;
+    bottom: 14px;
+    width: 40px;
+    height: 40px;
+  }
+  .lp-top-arrow {
+    width: 15px;
+    height: 15px;
+  }
+  .lp-cta-row .lp-btn {
+    width: 100%;
+  }
+  .lp-foot-in {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .lp-chip-a {
+    left: -8px;
+  }
+  .lp-chip-b {
+    right: -10px;
+  }
+}
+
+/* 小屏上原本把浮动卡整个 display:none —— 那等于把桌面端"围绕产品图呼吸"的动效
+   整块砍掉，手机上首屏只剩左边文案在动。这里不砍，改成贴着手机框上下边缘摆放：
+   不再盖住截图内容，反而成了两个标注，读起来比桌面端更清楚。
+   ⚠️ 位置只能上下溢出，不能左右：390px 视口里可视区宽度已接近手机框宽度，
+   横向再溢出会把整页撑宽（html 的 overflow-x:hidden 会把它裁掉，表现为右侧被切）。 */
+@media (max-width: 560px) {
+  .lp-chip {
+    font-size: 11.5px;
+    padding: 6px 10px;
+    /* 上下各溢出一个卡片高度的一半，视觉上"骑"在手机框边缘 */
+    max-width: calc(100% - 20px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .lp-chip-a {
+    top: -12px;
+    left: 10px;
+  }
+  .lp-chip-b {
+    bottom: -12px;
+    right: 10px;
+  }
+  /* 导航右区在 320~360px 上放不下三个控件，收掉这里的 CTA ——
+     首屏 hero 里就是同一个按钮，不会损失转化路径 */
+  .lp-nav-right .lp-btn {
+    display: none;
+  }
+}
+
+/* ================= 触屏动效层 =================
+   桌面端那些"活的"反馈全部挂在指针上：卡片聚光、主视觉 3D 倾斜、hover 抬升。
+   触屏没有 hover 语义（landing.ts 里那几处 `hover: hover and pointer: fine` 判断会
+   直接 return），于是同一份页面在手机上看起来明显"更平" —— 这就是本次要补的差距。
+
+   补法不是把桌面效果照搬（鼠标坐标在触屏上根本不存在），而是换一套触屏自己的语言：
+     ① 按压点亮：手指按在哪，光心就在哪（pointerdown 拿到坐标，抬手后自己淡出）
+     ② 按压回弹：用 scale 顶掉 hover 的抬升，让"点得到"这件事有物理反馈
+     ③ 竖向起势：窄屏里横向滑入（data-fx=left/right）没有纵深、还容易读成"横向抖动"，
+        手机上统一改成"从下方起、带一点缩放"的纵向入场
+     ④ 首屏层深：滚动时手机截图做一次 ±小角度的 3D 转台（角度由 landing.ts 写进
+        --rx/--ry，与桌面端鼠标倾斜共用同一套 CSS，见上面 .lp-phone 的 transform）
+   全部仍然只在 html.lp-fx 下生效，并在文件末尾的 reduce 块里注销。 */
+
+/* --- ① 按压点亮 ---
+   ::before 本身就是个 opacity:0 的径向渐变层，桌面靠 hover 翻到 1；
+   触屏改成由 JS 加 .is-lit。过渡给长一点（0.5s），抬手后是"余晖慢慢收"，不是硬切。
+   ⚠️ 顺序很重要：下面这组"中和 :hover"的规则必须写在 .is-lit / .is-press 之前。
+   触屏上点一下会让 :hover 粘住（iOS Safari 尤其明显），而 `html.lp-fx .lp-card:hover`
+   与 `html.lp-fx .lp-card.is-press` 的权重都是 (0,3,1) —— 谁写在后面谁生效。
+   把 :hover 放前面，才能让"按下收缩"压过"粘住的 hover 抬升"。 */
+@media (hover: none) {
+  /* 触屏上永远触发不了鼠标 hover 位移，而且个别浏览器"点一下卡住 hover 态"，
+     会让卡片停在抬升位置。这里直接中和掉，交给 .is-lit / .is-press 表达反馈。 */
+  html.lp-fx .lp-card:hover {
+    transform: none;
+  }
+  html.lp-fx .lp-card:hover .lp-ico {
+    transform: none;
+  }
+
+  html.lp-fx .lp-card::before,
+  html.lp-fx .lp-shot::before {
+    transition: opacity 0.5s var(--lp-ease);
+  }
+  html.lp-fx .lp-card.is-lit::before,
+  html.lp-fx .lp-shot.is-lit::before {
+    opacity: 1;
+  }
+  /* 按下时把边框与顶部高光一起点亮：屏幕小，单靠一层淡光容易看不出反馈 */
+  html.lp-fx .lp-card.is-lit,
+  html.lp-fx .lp-shot.is-lit {
+    border-color: var(--lp-border-strong);
+  }
+  html.lp-fx .lp-card.is-lit::after {
+    opacity: 1;
+  }
+  html.lp-fx .lp-card.is-lit .lp-ico {
+    transform: translateY(-2px);
+    border-color: var(--lp-accent);
+  }
+
+  /* --- ② 按压回弹 ---
+     桌面 hover 是 translateY(-2px)（"被托起来"），触屏相反：按下轻微收缩（"被按下去"）。
+     用 transform 而不是 scale 属性 —— .lp-reveal 的入场动画正占着 scale，两者会互相覆盖。
+     ⚠️ .lp-note（隐私区）故意不在名单里：那一块的设计意图就是"安静"，不做位移。 */
+  html.lp-fx .lp-card,
+  html.lp-fx .lp-shot,
+  html.lp-fx .lp-panel {
+    transition: border-color var(--lp-dur-fast) var(--lp-ease),
+      transform 0.16s var(--lp-ease);
+  }
+  html.lp-fx .lp-card.is-press,
+  html.lp-fx .lp-shot.is-press,
+  html.lp-fx .lp-panel.is-press {
+    transform: scale(0.988);
+  }
+}
+
+/* --- ③ 竖向起势 ---
+   窄屏（≤760px）里卡片几乎都是满宽，left/right 的 30px 横移只会让整块内容左右晃一下，
+   既没有纵深也容易被误读成"页面在抖"。改为纵向 26px + 0.97 缩放，克制但有分量。
+   缩放要额外登记过渡，否则 scale 会瞬间跳到终点。
+   ⚠️ 这里每个变体都必须自己再写一条 `.is-in` 复位：本块位于文件靠后处，
+   与 .is-in 的选择器权重相同（都是 0,3,1），靠"后来者胜"会把这几个初值
+   反过来盖在 `.is-in` 上 —— 元素入场后永远停在偏移位置（实测下移 26px）。
+   ⚠️ 只覆盖左/右与上/默认三种；zoom / tilt 的原值已经够用，不重复声明。 */
+@media (hover: none) and (pointer: coarse) {
+  html.lp-fx .lp-reveal[data-fx='left'],
+  html.lp-fx .lp-reveal[data-fx='right'] {
+    translate: 0 26px;
+    scale: 0.97;
+    transition: opacity var(--lp-dur) var(--lp-ease), translate var(--lp-dur) var(--lp-ease),
+      scale var(--lp-dur) var(--lp-ease);
+    transition-delay: var(--lp-delay, 0ms);
+  }
+  /* 手机屏幕高、滚动快，14px 的位移几乎看不出来，统一加大到 20~28px */
+  html.lp-fx .lp-reveal {
+    translate: 0 20px;
+  }
+  html.lp-fx .lp-reveal[data-fx='up'] {
+    translate: 0 28px;
+  }
+  /* 复位必须放在最后，且权重压过上面三条 —— 否则上面的初值会把 .is-in 盖掉 */
+  html.lp-fx .lp-reveal[data-fx='left'].is-in,
+  html.lp-fx .lp-reveal[data-fx='right'].is-in {
+    translate: 0 0;
+    scale: 1;
+  }
+  html.lp-fx .lp-reveal.is-in {
+    translate: 0 0;
+  }
+}
+
+/* 尊重系统的"减少动态效果"设置 —— 新增的每个动效都要在这里登记。
+   注意：public/landing-fx.js 在 reduce 下**根本不会**加 lp-fx，所以下面这些
+   `html.lp-fx …` 分支其实跑不到；留着是为了"页面加载后用户才改系统设置"这种情况
+   （那时 lp-fx 已经挂上、也不会被摘掉），保证任何时刻都不留半截动画。 */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .lp-btn,
+  .lp-card,
+  .lp-note,
+  .lp-panel,
+  .lp-shot,
+  .lp-ico,
+  .lp-step,
+  .lp-step-n,
+  .lp-copy,
+  .lp-nav,
+  .lp-skip,
+  .lp-brand img,
+  .lp-top,
+  .lp-hero-glow,
+  .lp-faq summary::after,
+  .lp-app,
+  .lp-app-group,
+  .lp-dot > span {
+    transition: none;
+  }
+  html.lp-fx .lp-reveal {
+    opacity: 1;
+    translate: 0 0;
+    transition: none;
+  }
+  /* ⚠️ 上面这条的权重是 (0,2,1)，而各个 [data-fx] 变体是 (0,3,1) ——
+     只写通用规则的话，变体自己登记的 transition 会活下来（实测 tilt 卡仍是
+     "opacity, translate, rotate"，left/right 仍是三属性过渡），减弱动效不彻底。
+     逐个变体点名压一遍，才能保证"运行中切到 reduce"也不留半截动画。 */
+  html.lp-fx .lp-reveal[data-fx] {
+    translate: 0 0;
+    scale: 1;
+    rotate: none;
+    transition: none;
+    transition-delay: 0ms;
+  }
+  html.lp-fx .lp-sec-head .lp-h2,
+  html.lp-fx .lp-shot img {
+    clip-path: none;
+    transition: none;
+  }
+  html.lp-fx .lp-hero-visual,
+  html.lp-fx .lp-aurora::before,
+  html.lp-fx .lp-aurora::after {
+    translate: none;
+  }
+  html.lp-fx .lp-h1 em {
+    animation: none;
+  }
+  html.lp-fx .lp-btn-primary::after {
+    display: none;
+  }
+  html.lp-fx .lp-chip {
+    animation: none;
+  }
+  html.lp-fx .lp-marquee.is-loop .lp-marquee-track {
+    animation: none;
+  }
+  html.lp-fx .lp-phone,
+  html.lp-fx .lp-phone.is-reset {
+    transform: none;
+    transition: none;
+  }
+  html.lp-fx .lp-steps::before,
+  html.lp-fx .lp-step::before {
+    transform: scaleY(1);
+    transition: none;
+  }
+  .lp-nav-progress {
+    display: none;
+  }
+  html.lp-fx .lp-dots {
+    display: none;
+  }
+  /* 触屏动效层（按压点亮 / 回弹 / 竖向起势）一并注销：reduce 下不留任何位移与缩放 */
+  html.lp-fx .lp-card,
+  html.lp-fx .lp-shot {
+    transition: border-color var(--lp-dur-fast) var(--lp-ease);
+  }
+  html.lp-fx .lp-card.is-press,
+  html.lp-fx .lp-shot.is-press,
+  html.lp-fx .lp-panel.is-press {
+    transform: none;
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "versionName": "1.9",
+  "versionCode": 10,
+  "fileName": "bjtu-helper-v1.9.apk",
+  "url": "/download/bjtu-helper-v1.9.apk",
+  "sizeBytes": 50421,
+  "sha256": "bb641bb7d5855ad159a1edb986d63b3443834d7bb13ecdc9fd7fa68974c07d89",
+  "md5": "4914c57f03d10159d00edf8cddb73e15",
+  "releasedAt": "2026-10-24",
+  "packageName": "com.bjtu.helper",
+  "osRequirement": "Android 7.0 及以上",
+  "minSdk": 24,
+  "changelog": [
+    "桌面小组件新增三个尺寸：紧凑（2×2，下一节课 + DDL 倒计时）、标准（4×2）、完整（4×3），长按桌面 → 小组件 → 交大小助手 里按需添加",
+    "课程区改为可滚动列表：有几节课显示几节、不再限 4 行；课程行改为两行式排版（时间列 + 课名/教室），正在上的课高亮显示「现在」，空间不再浪费一半",
+    "今天没课时自动显示明天课程预览（置灰区分），周日/周末不再一片空白",
+    "已添加的桌面组件升级本版本后自动获得新排版，无需重新添加；数据同步方式不变"
+  ]
+}
